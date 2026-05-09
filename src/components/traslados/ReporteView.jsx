@@ -87,8 +87,8 @@ function estadoInfo(estado) {
 
 // ── n8n mini panel ────────────────────────────────────────────────────────────
 const N8N_NODES = [
-  {id:'webhook',name:'Webhook'},{id:'sheets',name:'SEGUIMIENTO'},
-  {id:'agg_seg',name:'Agregar datos'},{id:'bq_prog',name:'BigQuery Progs'},
+  {id:'webhook',name:'Webhook'},{id:'supabase',name:'HTTP Supabase'},
+  {id:'leer',name:'Leer SEGUIMIENTO'},{id:'bq_prog',name:'BigQuery Progs'},
   {id:'agg_prog',name:'Agregar progs'},{id:'bq_mod',name:'BigQuery Mods'},
   {id:'proceso',name:'Proceso'},{id:'respond',name:'Responder'},
 ]

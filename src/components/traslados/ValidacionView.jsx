@@ -4,13 +4,13 @@ const N8N_WEBHOOK_URL = 'https://n8n.kuepa.com/webhook/asignacion-etdh'
 
 const N8N_NODES = [
   { id: 'webhook',    name: 'Webhook Trigger',         type: 'TRIGGER',  icon: '⚡' },
-  { id: 'sheets',     name: 'SEGUIMIENTO ETDH',        type: 'SHEETS',   icon: '📊' },
-  { id: 'filter',     name: 'Filtrar Lectiva',          type: 'CODE',     icon: '⚙' },
-  { id: 'bq_prog',    name: 'BigQuery — Programas',     type: 'BIGQUERY', icon: '🗄' },
-  { id: 'cross_prog', name: 'Cruzar Programas',         type: 'CODE',     icon: '⚙' },
-  { id: 'bq_mod',     name: 'BigQuery — Módulos',       type: 'BIGQUERY', icon: '🗄' },
-  { id: 'proceso',    name: 'Proceso Completo',         type: 'CODE',     icon: '⚙' },
-  { id: 'respond',    name: 'Respond to Webhook',       type: 'RESPOND',  icon: '↩' },
+  { id: 'supabase',   name: 'HTTP Supabase',           type: 'HTTP',     icon: '🗄' },
+  { id: 'leer',       name: 'Leer SEGUIMIENTO',        type: 'CODE',     icon: '⚙' },
+  { id: 'bq_prog',    name: 'BigQuery — Programas',    type: 'BIGQUERY', icon: '🗄' },
+  { id: 'cross_prog', name: 'Cruzar Programas',        type: 'CODE',     icon: '⚙' },
+  { id: 'bq_mod',     name: 'BigQuery — Módulos',      type: 'BIGQUERY', icon: '🗄' },
+  { id: 'proceso',    name: 'Proceso Completo',        type: 'CODE',     icon: '⚙' },
+  { id: 'respond',    name: 'Respond to Webhook',      type: 'RESPOND',  icon: '↩' },
 ]
 
 function initNodeStatuses() {
@@ -19,7 +19,7 @@ function initNodeStatuses() {
 
 const TYPE_BADGE = {
   TRIGGER:  'bg-violet-900/60 text-violet-300',
-  SHEETS:   'bg-emerald-900/60 text-emerald-300',
+  HTTP:     'bg-cyan-900/60 text-cyan-300',
   CODE:     'bg-sky-900/60 text-sky-300',
   BIGQUERY: 'bg-orange-900/60 text-orange-300',
   RESPOND:  'bg-zinc-700/60 text-zinc-300',
