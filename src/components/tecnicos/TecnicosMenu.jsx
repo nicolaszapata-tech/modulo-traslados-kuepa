@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY
+const SYNC_URL = 'https://n8n.kuepa.com/webhook/ultimo-sync-etdh'
 
 function formatSyncTime(isoStr) {
   if (!isoStr) return null
@@ -27,17 +26,10 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
   const [syncError, setSyncError] = useState(null)
 
   useEffect(() => {
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      setSyncError('ENV no configuradas')
-      setSyncLoading(false)
-      return
-    }
-    fetch(`${SUPABASE_URL}/rest/v1/seguimiento_etdh?select=sincronizado_en&order=sincronizado_en.desc&limit=1`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-    })
+    fetch(SYNC_URL)
       .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
       .then(data => {
-        if (data?.[0]?.sincronizado_en) setSyncInfo(formatSyncTime(data[0].sincronizado_en))
+        if (data?.lastSync) setSyncInfo(formatSyncTime(data.lastSync))
         else setSyncError('sin datos')
       })
       .catch(e => setSyncError(String(e)))
