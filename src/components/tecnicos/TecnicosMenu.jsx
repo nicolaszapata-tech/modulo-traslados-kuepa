@@ -1,4 +1,38 @@
+import { useState, useEffect } from 'react'
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY
+
+function formatSyncTime(isoStr) {
+  if (!isoStr) return null
+  const date = new Date(isoStr)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMin = Math.floor(diffMs / 60000)
+  const diffHrs = Math.floor(diffMin / 60)
+
+  const hhmm = date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+  const ddmm = date.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+  if (diffMin < 2)  return { label: `hace menos de 2 min — ${hhmm}`, color: 'emerald' }
+  if (diffMin < 60) return { label: `hace ${diffMin} min — ${hhmm}`, color: 'emerald' }
+  if (diffHrs < 2)  return { label: `hace ${diffHrs}h ${diffMin % 60}min — ${hhmm}`, color: 'amber' }
+  if (diffHrs < 6)  return { label: `hace ${diffHrs} horas — ${hhmm}`, color: 'amber' }
+  return { label: `${ddmm} ${hhmm}`, color: 'red' }
+}
+
 export default function TecnicosMenu({ onNavigate, onBack }) {
+  const [syncInfo, setSyncInfo] = useState(null)
+
+  useEffect(() => {
+    fetch(`${SUPABASE_URL}/rest/v1/seguimiento_etdh?select=sincronizado_en&order=sincronizado_en.desc&limit=1`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    })
+      .then(r => r.json())
+      .then(data => { if (data?.[0]?.sincronizado_en) setSyncInfo(formatSyncTime(data[0].sincronizado_en)) })
+      .catch(() => {})
+  }, [])
+
   return (
     <div className="scanline min-h-full">
       <div className="max-w-5xl mx-auto px-6 py-12">
@@ -20,6 +54,23 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
               MÓDULO ACTIVO — SELECCIONAR HERRAMIENTA
             </span>
           </div>
+          {syncInfo && (
+            <div className={`inline-flex items-center gap-2 mb-4 px-3 py-1.5 border rounded-sm ${
+              syncInfo.color === 'emerald' ? 'border-emerald-500/30 bg-emerald-950/30' :
+              syncInfo.color === 'amber'   ? 'border-amber-500/30 bg-amber-950/30' :
+                                             'border-red-500/30 bg-red-950/30'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                syncInfo.color === 'emerald' ? 'bg-emerald-400 animate-pulse' :
+                syncInfo.color === 'amber'   ? 'bg-amber-400' : 'bg-red-400'
+              }`}/>
+              <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500">SEGUIMIENTO sync</span>
+              <span className={`text-[10px] font-mono font-semibold ${
+                syncInfo.color === 'emerald' ? 'text-emerald-400' :
+                syncInfo.color === 'amber'   ? 'text-amber-400' : 'text-red-400'
+              }`}>{syncInfo.label}</span>
+            </div>
+          )}
           <h1 className="font-display font-black text-4xl md:text-5xl text-text-primary uppercase tracking-wider leading-none mb-3">
             TÉCNICOS<br />
             <span className="text-primary">EDTH</span>
