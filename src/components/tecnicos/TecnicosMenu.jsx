@@ -23,14 +23,25 @@ function formatSyncTime(isoStr) {
 
 export default function TecnicosMenu({ onNavigate, onBack }) {
   const [syncInfo, setSyncInfo] = useState(null)
+  const [syncLoading, setSyncLoading] = useState(true)
+  const [syncError, setSyncError] = useState(null)
 
   useEffect(() => {
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      setSyncError('ENV no configuradas')
+      setSyncLoading(false)
+      return
+    }
     fetch(`${SUPABASE_URL}/rest/v1/seguimiento_etdh?select=sincronizado_en&order=sincronizado_en.desc&limit=1`, {
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
     })
-      .then(r => r.json())
-      .then(data => { if (data?.[0]?.sincronizado_en) setSyncInfo(formatSyncTime(data[0].sincronizado_en)) })
-      .catch(() => {})
+      .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
+      .then(data => {
+        if (data?.[0]?.sincronizado_en) setSyncInfo(formatSyncTime(data[0].sincronizado_en))
+        else setSyncError('sin datos')
+      })
+      .catch(e => setSyncError(String(e)))
+      .finally(() => setSyncLoading(false))
   }, [])
 
   return (
@@ -54,23 +65,23 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
               MÓDULO ACTIVO — SELECCIONAR HERRAMIENTA
             </span>
           </div>
-          {syncInfo && (
-            <div className={`inline-flex items-center gap-2 mb-4 px-3 py-1.5 border rounded-sm ${
-              syncInfo.color === 'emerald' ? 'border-emerald-500/30 bg-emerald-950/30' :
-              syncInfo.color === 'amber'   ? 'border-amber-500/30 bg-amber-950/30' :
-                                             'border-red-500/30 bg-red-950/30'
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                syncInfo.color === 'emerald' ? 'bg-emerald-400 animate-pulse' :
-                syncInfo.color === 'amber'   ? 'bg-amber-400' : 'bg-red-400'
-              }`}/>
-              <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500">SEGUIMIENTO sync</span>
+          <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 border rounded-sm border-zinc-700/50 bg-zinc-900/40">
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+              syncLoading ? 'bg-zinc-500 animate-pulse' :
+              syncError   ? 'bg-red-400' :
+              syncInfo?.color === 'emerald' ? 'bg-emerald-400 animate-pulse' :
+              syncInfo?.color === 'amber'   ? 'bg-amber-400' : 'bg-red-400'
+            }`}/>
+            <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500">SEGUIMIENTO sync</span>
+            {syncLoading && <span className="text-[10px] font-mono text-zinc-600">consultando...</span>}
+            {!syncLoading && syncError && <span className="text-[10px] font-mono text-red-400">{syncError}</span>}
+            {!syncLoading && syncInfo && (
               <span className={`text-[10px] font-mono font-semibold ${
                 syncInfo.color === 'emerald' ? 'text-emerald-400' :
                 syncInfo.color === 'amber'   ? 'text-amber-400' : 'text-red-400'
               }`}>{syncInfo.label}</span>
-            </div>
-          )}
+            )}
+          </div>
           <h1 className="font-display font-black text-4xl md:text-5xl text-text-primary uppercase tracking-wider leading-none mb-3">
             TÉCNICOS<br />
             <span className="text-primary">EDTH</span>
