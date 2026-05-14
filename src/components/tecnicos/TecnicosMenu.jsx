@@ -86,7 +86,7 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
         {/* Divider */}
         <div className="flex items-center gap-4 mb-8">
           <div className="flex-1 h-px bg-primary/20" />
-          <span className="text-primary/30 text-[10px] font-mono tracking-widest">3 HERRAMIENTAS DISPONIBLES</span>
+          <span className="text-primary/30 text-[10px] font-mono tracking-widest">3 ACTIVAS · 1 EN DESARROLLO</span>
           <div className="flex-1 h-px bg-primary/20" />
         </div>
 
@@ -180,6 +180,36 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
             </div>
             <div className="w-48 flex-shrink-0 flex items-center justify-center border-l border-amber-500/30 p-4">
               <button className="w-full py-2.5 px-4 text-[11px] font-mono uppercase tracking-[0.2em] border border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-400 hover:text-background transition-all duration-200 text-center active:scale-95">
+                ABRIR <span className="opacity-60">›</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Card 4: Disponibilidad de Grupos */}
+          <div
+            className="bg-background-card border border-violet-500/30 corner-box hover:border-violet-500/70 hover:bg-background-elevated transition-all duration-300 flex items-stretch relative cursor-pointer"
+            onClick={() => onNavigate('disponibilidad')}
+          >
+            <div className="w-24 flex-shrink-0 flex flex-col items-center justify-center border-r border-violet-500/20 p-4 gap-3">
+              <span className="font-mono text-xs text-violet-400 opacity-40">04</span>
+              <span className="text-4xl">📊</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-500/50" />
+            </div>
+            <div className="flex-1 px-6 py-5 flex flex-col justify-center min-w-0">
+              <div className="flex items-center gap-3 mb-1">
+                <span className="text-[9px] font-mono tracking-[0.3em] uppercase border px-2 py-0.5 text-violet-400 border-violet-500/30 bg-violet-500/10">
+                  EN DESARROLLO
+                </span>
+              </div>
+              <h3 className="font-display font-black text-lg uppercase tracking-wider text-violet-400 mb-1">
+                Disponibilidad de Grupos
+              </h3>
+              <p className="text-text-secondary text-sm leading-relaxed">
+                Visualiza los grupos activos por período para cada técnico. Consulta inscripciones brutas, estudiantes activos y fechas de cada grupo en tiempo real.
+              </p>
+            </div>
+            <div className="w-48 flex-shrink-0 flex items-center justify-center border-l border-violet-500/20 p-4">
+              <button className="w-full py-2.5 px-4 text-[11px] font-mono uppercase tracking-[0.2em] border border-violet-500/50 bg-violet-500/10 text-violet-400 hover:bg-violet-500 hover:text-background transition-all duration-200 text-center active:scale-95">
                 ABRIR <span className="opacity-60">›</span>
               </button>
             </div>

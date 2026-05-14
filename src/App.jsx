@@ -5,9 +5,10 @@ import TecnicosMenu from './components/tecnicos/TecnicosMenu'
 import AnclaViewer from './components/anclas/AnclaViewer'
 import ValidacionView from './components/traslados/ValidacionView'
 import ReporteView from './components/traslados/ReporteView'
+import DisponibilidadView from './components/traslados/DisponibilidadView'
 
 export default function App() {
-  const [view, setView] = useState('home') // 'home' | 'tecnicos' | 'anclas' | 'validacion' | 'reporte'
+  const [view, setView] = useState('home') // 'home' | 'tecnicos' | 'anclas' | 'validacion' | 'reporte' | 'disponibilidad'
 
   return (
     <Layout>
@@ -30,6 +31,9 @@ export default function App() {
       )}
       {view === 'reporte' && (
         <ReporteView onBack={() => setView('tecnicos')} />
+      )}
+      {view === 'disponibilidad' && (
+        <DisponibilidadView onBack={() => setView('tecnicos')} />
       )}
     </Layout>
   )
