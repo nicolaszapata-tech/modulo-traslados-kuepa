@@ -282,18 +282,19 @@ export default function DisponibilidadView({ onBack }) {
                 <th className="text-right  px-4 py-3 text-[10px] tracking-widest uppercase text-text-muted font-normal w-24">ACTIVOS</th>
                 <th className="text-center px-4 py-3 text-[10px] tracking-widest uppercase text-text-muted font-normal w-32">INICIO</th>
                 <th className="text-center px-4 py-3 text-[10px] tracking-widest uppercase text-text-muted font-normal w-32">FIN</th>
+                <th className="px-4 py-3 w-12"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-text-muted text-xs">
+                  <td colSpan={8} className="px-4 py-10 text-center text-text-muted text-xs">
                     <span className="animate-pulse">Consultando BigQuery...</span>
                   </td>
                 </tr>
               ) : tableData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-text-muted text-xs">
+                  <td colSpan={8} className="px-4 py-10 text-center text-text-muted text-xs">
                     Sin grupos registrados para <span className="text-text-secondary">{effectivePeriod}</span>
                   </td>
                 </tr>
@@ -312,6 +313,17 @@ export default function DisponibilidadView({ onBack }) {
                     <td className={`px-4 py-3 text-right font-semibold ${colors.text}`}>{row.active_students}</td>
                     <td className="px-4 py-3 text-center text-text-secondary">{row.start_date}</td>
                     <td className="px-4 py-3 text-center text-text-secondary">{row.end_date}</td>
+                    <td className="px-4 py-3 text-center">
+                      <a
+                        href={`https://sis.kuepa.com/academic-group/details/${row.group_id}?tab=sylabus`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`${colors.text} opacity-60 hover:opacity-100 transition-opacity text-base leading-none`}
+                        title={row.group_id}
+                      >
+                        ↗
+                      </a>
+                    </td>
                   </tr>
                 ))
               )}
