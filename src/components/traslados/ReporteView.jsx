@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react'
 
-const N8N_WEBHOOK_URL = 'https://n8n.kuepa.com/webhook/asignacion-etdh'
-const N8N_EXPORT_URL  = 'https://n8n.kuepa.com/webhook/reporte-export-etdh'
-const N8N_SLACK_URL   = 'https://n8n.kuepa.com/webhook/reporte-slack-etdh'
+const N8N_WEBHOOK_URL    = 'https://n8n.kuepa.com/webhook/asignacion-etdh'
+const N8N_EXPORT_URL     = 'https://n8n.kuepa.com/webhook/reporte-export-etdh'
+const N8N_SLACK_URL      = 'https://n8n.kuepa.com/webhook/reporte-slack-etdh'
+const DISPONIBILIDAD_URL = 'https://n8n.kuepa.com/webhook/disponibilidad-grupos-etdh'
+const CAPACITY_MAX       = 90
 
 // ── Calendar ──────────────────────────────────────────────────────────────────
 const PERIODOS_LISTA_RAW = [
@@ -83,6 +85,51 @@ function estadoInfo(estado) {
   if (ESTADOS_ACTIVOS_SET.has(estado.toLowerCase().trim()))
     return { cls: 'text-emerald-300 font-semibold', bg: 'bg-emerald-950/50' }
   return { cls: 'text-red-300 font-semibold', bg: 'bg-red-950/50' }
+}
+
+// ── Group-assignment helpers ──────────────────────────────────────────────────
+function findPeriodForStartDate(startDateStr) {
+  if (!startDateStr) return null
+  const parts = startDateStr.split('/')
+  if (parts.length !== 3) return null
+  const d = parseInt(parts[0]), m = parseInt(parts[1]), y = parseInt(parts[2])
+  const target = new Date(y, m - 1, d)
+  for (const p of PERIODOS_LISTA_RAW) {
+    const [yi, mi, di] = p.i.split('-').map(Number)
+    const [yf, mf, df] = p.f.split('-').map(Number)
+    if (target >= new Date(yi, mi-1, di) && target <= new Date(yf, mf-1, df)) return p.n
+  }
+  return null
+}
+
+function getProgramId(name) {
+  if (!name) return null
+  if (/Auxiliar Administrativo/i.test(name)) return 'TLAA'
+  if (/Mercadeo|Ventas|Venta/i.test(name))   return 'TLMV'
+  if (/Contabilidad/i.test(name))             return 'TLCF'
+  if (/Digitaci|Procesamiento/i.test(name))   return 'TLPDD'
+  return null
+}
+
+function sisUrl(groupId) {
+  return `https://sis.kuepa.com/academic-group/details/${groupId}?tab=sylabus`
+}
+
+function deriveTab(est) {
+  const ps = (est.prog_seguimiento || '').toUpperCase()
+  const pp  = est.prog_plataforma || ''
+  if (ps.includes('EFE'))  return { key: `${pp}-EFE`,  progPlataforma: pp, variant: 'EFE'  }
+  if (ps.includes('OXXO')) return { key: `${pp}-OXXO`, progPlataforma: pp, variant: 'OXXO' }
+  return { key: pp, progPlataforma: pp, variant: 'normal' }
+}
+
+function deriveTabs(rows) {
+  const seen = new Map()
+  for (const { est } of rows) {
+    const tab = deriveTab(est)
+    if (!seen.has(tab.key)) seen.set(tab.key, tab)
+  }
+  return [...seen.values()]
 }
 
 // ── n8n mini panel ────────────────────────────────────────────────────────────
@@ -167,7 +214,7 @@ function parseRow(row) {
     celular:           row[3]  ?? '',
     prog_seguimiento:  row[4]  ?? '',
     prog_plataforma:   row[5]  ?? '',
-    compat:            row[6]  ?? '',   // ✓ / ✗
+    compat:            row[6]  ?? '',
     fecha_ingreso:     row[7]  ?? '',
     periodo_ingreso:   row[8]  ?? '',
     estado_plataforma: row[9]  ?? '',
@@ -211,28 +258,30 @@ function InfoTable({ periodoRevision, tipo, cohorteFrom, cohorteTo, materiasRevi
 }
 
 // ── ErrorTable ────────────────────────────────────────────────────────────────
-// 16 columnas según spec del usuario
 const TABLE_COLS = [
-  { label: 'ID SIS',                              w: '80px',  section: 'base' },
-  { label: 'Cédula',                              w: '110px', section: 'base' },
-  { label: 'Nombre',                              w: '170px', section: 'base' },
-  { label: 'Celular',                             w: '105px', section: 'base' },
-  { label: 'Prog. Seguimiento',                   w: '115px', section: 'base' },
-  { label: 'Prog. Plataforma',                    w: '105px', section: 'base' },
-  { label: 'Compatibilidad',                      w: '95px',  section: 'base' },
-  { label: 'Estado (Plataforma)',                 w: '155px', section: 'base' },
-  { label: 'Fecha Ingreso',                       w: '95px',  section: 'base' },
-  { label: 'Período Ancla',                       w: '95px',  section: 'base' },
-  { label: 'Materia en Plataforma',               w: '160px', section: 'red'  },
-  { label: 'Nombre del Grupo',                    w: '185px', section: 'red'  },
-  { label: 'Estructura de la Materia',            w: '110px', section: 'red'  },
-  { label: 'Fecha Inicio SIS',                    w: '90px',  section: 'red'  },
-  { label: 'Materia Correcta (Ancla)',            w: '160px', section: 'green'},
-  { label: 'Fechas Correctas (Ancla)',            w: '150px', section: 'green'},
-  { label: 'Tipo de Error',                       w: '170px', section: 'amber'},
+  { label: 'ID SIS',                              w: '80px',  section: 'base'   },
+  { label: 'Cédula',                              w: '110px', section: 'base'   },
+  { label: 'Nombre',                              w: '170px', section: 'base'   },
+  { label: 'Celular',                             w: '105px', section: 'base'   },
+  { label: 'Prog. Seguimiento',                   w: '115px', section: 'base'   },
+  { label: 'Prog. Plataforma',                    w: '105px', section: 'base'   },
+  { label: 'Compatibilidad',                      w: '95px',  section: 'base'   },
+  { label: 'Estado (Plataforma)',                 w: '155px', section: 'base'   },
+  { label: 'Fecha Ingreso',                       w: '95px',  section: 'base'   },
+  { label: 'Período Ancla',                       w: '95px',  section: 'base'   },
+  { label: 'Materia en Plataforma',               w: '160px', section: 'red'    },
+  { label: 'Nombre del Grupo',                    w: '185px', section: 'red'    },
+  { label: 'Estructura de la Materia',            w: '110px', section: 'red'    },
+  { label: 'Fecha Inicio SIS',                    w: '90px',  section: 'red'    },
+  { label: 'Materia Correcta (Ancla)',             w: '160px', section: 'green'  },
+  { label: 'Fechas Correctas (Ancla)',             w: '150px', section: 'green'  },
+  { label: 'Tipo de Error',                       w: '170px', section: 'amber'  },
+  { label: 'Sección',                             w: '130px', section: 'violet' },
+  { label: 'ID del Grupo',                        w: '215px', section: 'violet' },
+  { label: 'Link SIS',                            w: '75px',  section: 'violet' },
 ]
 
-function ErrorTable({ rows }) {
+function ErrorTable({ rows, assignments, sectionPeriodo }) {
   if (rows.length === 0) return (
     <div className="rounded-lg border border-emerald-500/30 px-6 py-8 text-center bg-emerald-950/20">
       <div className="text-emerald-400 text-3xl mb-2">✓</div>
@@ -240,31 +289,34 @@ function ErrorTable({ rows }) {
     </div>
   )
 
-  const thBase  = 'bg-zinc-800 text-zinc-100'
-  const thRed   = 'bg-red-900/70 text-red-100'
-  const thGreen = 'bg-emerald-900/70 text-emerald-100'
-  const thAmber = 'bg-amber-900/60 text-amber-100'
+  const thBase   = 'bg-zinc-800 text-zinc-100'
+  const thRed    = 'bg-red-900/70 text-red-100'
+  const thGreen  = 'bg-emerald-900/70 text-emerald-100'
+  const thAmber  = 'bg-amber-900/60 text-amber-100'
+  const thViolet = 'bg-violet-900/50 text-violet-100'
 
   return (
     <div className="rounded-lg border border-zinc-600 overflow-auto" style={{ maxHeight: '65vh' }}>
-      <table className="font-mono border-collapse text-xs" style={{ minWidth: '1700px' }}>
+      <table className="font-mono border-collapse text-xs" style={{ minWidth: '2150px' }}>
         <thead className="sticky top-0 z-10">
           <tr>
             {TABLE_COLS.map((c, i) => (
               <th key={i} style={{ minWidth: c.w }}
                 className={`border-b-2 border-r border-zinc-600 px-3 py-3 text-[10px] font-bold tracking-wide uppercase whitespace-nowrap text-left ${
-                  c.section === 'red'   ? thRed   :
-                  c.section === 'green' ? thGreen :
-                  c.section === 'amber' ? thAmber : thBase
+                  c.section === 'red'    ? thRed    :
+                  c.section === 'green'  ? thGreen  :
+                  c.section === 'amber'  ? thAmber  :
+                  c.section === 'violet' ? thViolet : thBase
                 }`}>{c.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map(({ est, mod }, ri) => {
-            const ep = estadoInfo(est.estado_plataforma)
+            const ep     = estadoInfo(est.estado_plataforma)
             const isFalta = mod.estado.includes('FALTA')
-            const isOk = est.compat === '✓'
+            const isOk   = est.compat === '✓'
+            const asgn   = assignments?.get(`${sectionPeriodo}_${est.id_sis}`)
             return (
               <tr key={ri} className={`border-b border-zinc-700 hover:brightness-110 transition-all ${
                 ri % 2 === 0 ? 'bg-zinc-900' : 'bg-zinc-800/50'
@@ -301,10 +353,23 @@ function ErrorTable({ rows }) {
                   <span className="text-emerald-300 whitespace-nowrap">{mod.fechas_ancla || '—'}</span>
                 </td>
                 {/* amber column */}
-                <td className="px-3 py-2 bg-amber-950/15">
+                <td className="border-r border-zinc-700 px-3 py-2 bg-amber-950/15">
                   <span className={`font-bold ${isFalta ? 'text-amber-300' : 'text-red-300'}`}>
                     {mod.estado.replace('INCORRECTO - ', '')}
                   </span>
+                </td>
+                {/* violet columns — assignment */}
+                <td className="border-r border-zinc-700 px-3 py-2 bg-violet-950/15">
+                  <span className="text-violet-300 text-[11px]">{asgn?.section_name || '—'}</span>
+                </td>
+                <td className="border-r border-zinc-700 px-3 py-2 bg-violet-950/15">
+                  <span className="text-violet-200 font-mono text-[11px] whitespace-nowrap">{asgn?.group_id || '—'}</span>
+                </td>
+                <td className="px-3 py-2 bg-violet-950/15 text-center">
+                  {asgn?.sis_url
+                    ? <a href={asgn.sis_url} target="_blank" rel="noopener noreferrer"
+                        className="text-violet-400 hover:text-violet-200 text-base transition-colors">↗</a>
+                    : <span className="text-zinc-600">—</span>}
                 </td>
               </tr>
             )
@@ -331,6 +396,322 @@ function StatBadge({ label, value, color = 'zinc' }) {
   )
 }
 
+// ── AsignarGruposModal ────────────────────────────────────────────────────────
+function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCache, gruposLoading }) {
+  const tabs = useMemo(() => deriveTabs(section.rows), [section.rows])
+
+  const [activeTab,        setActiveTab]        = useState(tabs[0] || null)
+  const [selectedGroup,    setSelectedGroup]    = useState(null)
+  const [localAssignments, setLocalAssignments] = useState(() => {
+    const m = new Map()
+    for (const { est } of section.rows) {
+      const existing = assignments.get(`${section.periodoRevision}_${est.id_sis}`)
+      if (existing) m.set(est.id_sis, existing)
+    }
+    return m
+  })
+
+  // Tab student counts (all tabs, not just active)
+  const tabCounts = useMemo(() => {
+    const counts = {}
+    for (const { est } of section.rows) {
+      const key = deriveTab(est).key
+      counts[key] = (counts[key] || 0) + 1
+    }
+    return counts
+  }, [section.rows])
+
+  // Enrich grupos with period + programId
+  const enrichedGrupos = useMemo(() => {
+    if (!gruposCache) return []
+    return gruposCache.map(g => ({
+      ...g,
+      programId: getProgramId(g.program_name),
+      period:    findPeriodForStartDate(g.start_date),
+    }))
+  }, [gruposCache])
+
+  // Grupos for active tab + section period
+  const tabGrupos = useMemo(() => {
+    if (!activeTab) return []
+    return enrichedGrupos.filter(g =>
+      g.programId === activeTab.progPlataforma &&
+      g.period    === section.periodoRevision
+    )
+  }, [enrichedGrupos, activeTab, section.periodoRevision])
+
+  // Students for active tab
+  const tabStudents = useMemo(() => {
+    if (!activeTab) return []
+    return section.rows.filter(({ est }) => deriveTab(est).key === activeTab.key)
+  }, [section.rows, activeTab])
+
+  function getAssignedToGroup(groupId, map) {
+    let c = 0
+    for (const [, v] of map) if (v.group_id === groupId) c++
+    return c
+  }
+
+  function getAvailable(grupo) {
+    return Math.max(0, CAPACITY_MAX - grupo.active_students - getAssignedToGroup(grupo.group_id, localAssignments))
+  }
+
+  function handleAutoAsignar() {
+    const newLocal = new Map(localAssignments)
+    // Clear current tab students
+    for (const { est } of tabStudents) newLocal.delete(est.id_sis)
+
+    const sorted = [...tabGrupos].sort((a, b) => (a.group_name || '').localeCompare(b.group_name || ''))
+    let gi = 0
+    for (const { est } of tabStudents) {
+      while (gi < sorted.length) {
+        const g = sorted[gi]
+        const used = g.active_students + getAssignedToGroup(g.group_id, newLocal)
+        if (used < CAPACITY_MAX) break
+        gi++
+      }
+      if (gi >= sorted.length) break
+      const g = sorted[gi]
+      newLocal.set(est.id_sis, {
+        group_id:     g.group_id,
+        group_name:   g.group_name,
+        section_name: g.section_name,
+        sis_url:      sisUrl(g.group_id),
+      })
+    }
+    setLocalAssignments(newLocal)
+  }
+
+  function handleConfirm() {
+    const merged = new Map(assignments)
+    for (const { est } of section.rows) {
+      const key   = `${section.periodoRevision}_${est.id_sis}`
+      const local = localAssignments.get(est.id_sis)
+      if (local) merged.set(key, local)
+      else merged.delete(key)
+    }
+    onAssign(merged)
+    onClose()
+  }
+
+  const assignedCount = localAssignments.size
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+      <div className="w-full max-w-5xl flex flex-col rounded-xl border border-violet-500/40 bg-zinc-950 shadow-2xl overflow-hidden" style={{ maxHeight: '90vh' }}>
+
+        {/* Modal header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-violet-500/30 bg-violet-950/30 flex-shrink-0">
+          <div>
+            <div className="text-[10px] font-mono text-violet-400 uppercase tracking-widest mb-1">Asignación de grupos correctos</div>
+            <h2 className="text-xl font-display font-bold text-white uppercase tracking-wider">{section.periodoRevision}</h2>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-xl w-8 h-8 flex items-center justify-center">✕</button>
+        </div>
+
+        {/* Tabs row */}
+        <div className="flex items-stretch border-b border-zinc-700 bg-zinc-900 flex-shrink-0 px-6 gap-1 overflow-x-auto">
+          {tabs.map(tab => (
+            <button key={tab.key}
+              onClick={() => { setActiveTab(tab); setSelectedGroup(null) }}
+              className={`px-5 py-3 text-xs font-mono font-bold uppercase tracking-widest border-b-2 whitespace-nowrap transition-all flex-shrink-0 ${
+                activeTab?.key === tab.key
+                  ? 'border-violet-400 text-violet-300'
+                  : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
+              }`}>
+              {tab.key}
+              <span className="ml-2 text-[10px] opacity-60">({tabCounts[tab.key] || 0})</span>
+            </button>
+          ))}
+          <div className="ml-auto flex items-center py-2 flex-shrink-0">
+            <button disabled
+              className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest rounded border border-zinc-700 text-zinc-600 cursor-not-allowed whitespace-nowrap">
+              SUGERENCIA IA · EN DESARROLLO
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+
+          {/* Groups panel */}
+          <div className="w-72 flex-shrink-0 border-r border-zinc-700 flex flex-col">
+            <div className="px-4 py-3 border-b border-zinc-700 bg-zinc-900 flex-shrink-0">
+              <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">Grupos disponibles</div>
+              {activeTab && (
+                <div className="text-xs font-mono text-violet-300 mt-0.5">
+                  {activeTab.key} · {section.periodoRevision}
+                </div>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {gruposLoading ? (
+                <div className="text-center text-zinc-500 text-xs py-8 font-mono">
+                  <span className="animate-pulse">Cargando grupos...</span>
+                </div>
+              ) : tabGrupos.length === 0 ? (
+                <div className="text-center text-zinc-600 text-xs py-8 font-mono leading-relaxed">
+                  Sin grupos encontrados<br/>para este período
+                </div>
+              ) : tabGrupos.map(g => {
+                const assignedHere = getAssignedToGroup(g.group_id, localAssignments)
+                const total        = g.active_students + assignedHere
+                const available    = Math.max(0, CAPACITY_MAX - total)
+                const pct          = Math.min(100, Math.round(total / CAPACITY_MAX * 100))
+                const isSel        = selectedGroup?.group_id === g.group_id
+                const full         = available === 0
+                return (
+                  <div key={g.group_id}
+                    onClick={() => setSelectedGroup(isSel ? null : g)}
+                    className={`rounded-lg border p-3 cursor-pointer transition-all ${
+                      isSel ? 'border-violet-400 bg-violet-950/40 shadow-[0_0_10px_rgba(167,139,250,0.2)]' :
+                      full  ? 'border-red-500/30 bg-red-950/10 opacity-50 cursor-default' :
+                      'border-zinc-700 bg-zinc-900 hover:border-zinc-500 hover:bg-zinc-800/60'
+                    }`}>
+                    <div className="flex items-start justify-between mb-1 gap-2">
+                      <div className="text-xs text-zinc-200 font-medium leading-tight">{g.group_name}</div>
+                      <span className={`text-[10px] font-mono font-bold flex-shrink-0 ${
+                        full ? 'text-red-400' : available <= 10 ? 'text-amber-400' : 'text-emerald-400'
+                      }`}>{full ? 'LLENO' : `+${available}`}</span>
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-500 mb-2">{g.section_name}</div>
+                    <div className="w-full h-1.5 rounded-full bg-zinc-700 overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${
+                        pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`} style={{ width: `${pct}%` }}/>
+                    </div>
+                    <div className="text-[9px] font-mono text-zinc-600 mt-1">
+                      {total}/{CAPACITY_MAX}
+                      {assignedHere > 0 && <span className="text-violet-400 ml-1.5">+{assignedHere} asignados aquí</span>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="p-3 border-t border-zinc-700 flex-shrink-0">
+              <button onClick={handleAutoAsignar}
+                disabled={tabGrupos.length === 0 || gruposLoading}
+                className="w-full py-2 text-xs font-mono uppercase tracking-widest rounded-lg border border-violet-500/50 bg-violet-500/5 text-violet-300 hover:bg-violet-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                ⟳ Auto-asignar secuencial
+              </button>
+            </div>
+          </div>
+
+          {/* Students panel */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <div className="px-4 py-3 border-b border-zinc-700 bg-zinc-900 flex-shrink-0 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">Estudiantes con errores</div>
+                <div className="text-xs font-mono text-zinc-300 mt-0.5">
+                  {tabStudents.length} en esta tab ·{' '}
+                  <span className="text-violet-300">
+                    {tabStudents.filter(({ est }) => localAssignments.has(est.id_sis)).length} asignados
+                  </span>
+                </div>
+              </div>
+              {selectedGroup ? (
+                <div className="text-xs font-mono border border-violet-500/40 bg-violet-950/20 text-violet-300 px-3 py-1.5 rounded-lg flex-shrink-0">
+                  Asignando a: <span className="font-bold">{selectedGroup.group_name}</span>
+                </div>
+              ) : (
+                <div className="text-[10px] font-mono text-zinc-600 italic flex-shrink-0">
+                  ← Selecciona un grupo
+                </div>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {tabStudents.length === 0 ? (
+                <div className="text-center text-zinc-600 text-xs py-12 font-mono">Sin estudiantes para esta tab</div>
+              ) : (
+                <table className="w-full text-xs font-mono border-collapse">
+                  <thead className="sticky top-0 bg-zinc-900 border-b border-zinc-700 z-10">
+                    <tr>
+                      <th className="w-10 px-3 py-2.5"/>
+                      <th className="text-left px-3 py-2.5 text-zinc-500 uppercase tracking-wide text-[10px] font-semibold">Nombre</th>
+                      <th className="text-left px-3 py-2.5 text-zinc-500 uppercase tracking-wide text-[10px] font-semibold">Cédula</th>
+                      <th className="text-left px-3 py-2.5 text-zinc-500 uppercase tracking-wide text-[10px] font-semibold">Estado</th>
+                      <th className="text-left px-3 py-2.5 text-zinc-500 uppercase tracking-wide text-[10px] font-semibold">Grupo asignado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tabStudents.map(({ est }, i) => {
+                      const asgn      = localAssignments.get(est.id_sis)
+                      const isChecked = !!asgn
+                      const ep        = estadoInfo(est.estado_plataforma)
+                      return (
+                        <tr key={est.id_sis} className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors ${
+                          i % 2 === 0 ? '' : 'bg-zinc-800/20'
+                        }`}>
+                          <td className="px-3 py-2 text-center">
+                            <input type="checkbox" checked={isChecked}
+                              onChange={e => {
+                                if (!e.target.checked) {
+                                  setLocalAssignments(prev => { const m = new Map(prev); m.delete(est.id_sis); return m })
+                                } else if (selectedGroup) {
+                                  setLocalAssignments(prev => {
+                                    const assigned = getAssignedToGroup(selectedGroup.group_id, prev)
+                                    const avail = Math.max(0, CAPACITY_MAX - selectedGroup.active_students - assigned)
+                                    if (avail <= 0) return prev
+                                    const m = new Map(prev)
+                                    m.set(est.id_sis, {
+                                      group_id:     selectedGroup.group_id,
+                                      group_name:   selectedGroup.group_name,
+                                      section_name: selectedGroup.section_name,
+                                      sis_url:      sisUrl(selectedGroup.group_id),
+                                    })
+                                    return m
+                                  })
+                                }
+                              }}
+                              className="accent-violet-500 cursor-pointer w-4 h-4"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-white">{est.nombre || '—'}</td>
+                          <td className="px-3 py-2 text-zinc-400">{est.cedula || '—'}</td>
+                          <td className="px-3 py-2">
+                            <span className={`${ep.cls} text-[10px]`}>{est.estado_plataforma || '—'}</span>
+                          </td>
+                          <td className="px-3 py-2">
+                            {asgn ? (
+                              <div>
+                                <div className="text-violet-300 font-medium">{asgn.group_name}</div>
+                                <div className="text-zinc-500 text-[10px]">{asgn.section_name}</div>
+                              </div>
+                            ) : (
+                              <span className="text-zinc-600 italic">Sin asignar</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Modal footer */}
+        <div className="px-6 py-4 border-t border-zinc-700 bg-zinc-900 flex items-center justify-between flex-shrink-0">
+          <div className="text-xs text-zinc-500 font-mono">
+            <span className="text-violet-300 font-semibold">{assignedCount}</span> estudiante{assignedCount !== 1 ? 's' : ''} asignado{assignedCount !== 1 ? 's' : ''} en total
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={onClose}
+              className="px-4 py-2 text-xs font-mono uppercase tracking-widest border border-zinc-600 text-zinc-400 hover:text-white hover:border-zinc-400 rounded-lg transition-all">
+              Cancelar
+            </button>
+            <button onClick={handleConfirm}
+              className="px-5 py-2 text-xs font-mono uppercase tracking-widest font-bold border border-violet-500 bg-violet-500/15 text-violet-300 hover:bg-violet-500 hover:text-white rounded-lg transition-all active:scale-95">
+              ✓ Confirmar asignación
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ReporteView({ onBack }) {
   const [fase,        setFase]        = useState('idle')
@@ -344,6 +725,12 @@ export default function ReporteView({ onBack }) {
   const [exportFase,  setExportFase]  = useState('idle')
   const [exportUrl,   setExportUrl]   = useState('')
   const [slackFase,   setSlackFase]   = useState('idle')
+
+  // Group assignment state
+  const [assignments,   setAssignments]   = useState(new Map())
+  const [gruposCache,   setGruposCache]   = useState(null) // null = not fetched yet, [] = fetched empty
+  const [gruposLoading, setGruposLoading] = useState(false)
+  const [asignarModal,  setAsignarModal]  = useState({ open: false, section: null })
 
   const todayInfo = useMemo(() => getTodayInfo(), [])
 
@@ -429,7 +816,7 @@ export default function ReporteView({ onBack }) {
   }
 
   async function handleCargar() {
-    setFase('loading'); setNodes(initNodes()); setSelections({})
+    setFase('loading'); setNodes(initNodes()); setSelections({}); setAssignments(new Map())
     const animPromise = (async () => {
       for (let i = 0; i < N8N_NODES.length; i++) {
         setNodeStatus(i, 'running')
@@ -458,6 +845,27 @@ export default function ReporteView({ onBack }) {
   function handleReset() {
     setFase('idle'); setEstudiantes([]); setErrorMsg(''); setNodes(initNodes())
     setSelections({}); setCohortFrom(''); setCohortTo(''); setExportFase('idle'); setExportUrl(''); setSlackFase('idle')
+    setAssignments(new Map()); setAsignarModal({ open: false, section: null })
+  }
+
+  async function fetchGruposIfNeeded() {
+    if (gruposCache !== null) return
+    setGruposLoading(true)
+    try {
+      const resp = await fetch(DISPONIBILIDAD_URL)
+      if (!resp.ok) throw new Error(`Error ${resp.status}`)
+      const data = await resp.json()
+      setGruposCache(Array.isArray(data) ? data : [])
+    } catch {
+      setGruposCache([])
+    } finally {
+      setGruposLoading(false)
+    }
+  }
+
+  function handleOpenAsignar(section) {
+    fetchGruposIfNeeded()
+    setAsignarModal({ open: true, section })
   }
 
   async function handleSlack() {
@@ -518,25 +926,31 @@ export default function ReporteView({ onBack }) {
         materiasRevision: s.materiasRevision,
         tipo, cohorteRange: rangeLabel,
         stats: { totalEnPeriodo: s.totalEnPeriodo, totalCorrectos: s.totalCorrectos, conErrores: s.rows.length },
-        rows: s.rows.map(({ est, mod }) => ({
-          id_sis:            est.id_sis,
-          cedula:            est.cedula,
-          nombre:            est.nombre,
-          celular:           est.celular,
-          prog_seguimiento:  est.prog_seguimiento,
-          prog_plataforma:   est.prog_plataforma,
-          compat:            est.compat,
-          estado_plataforma: est.estado_plataforma,
-          fecha_ingreso:     est.fecha_ingreso,
-          periodo_ingreso:   est.periodo_ingreso,
-          materia_plat:      mod.materia_plat || 'NO ASIGNADA',
-          grupo_plat:        mod.grupo_plat,
-          id_grupo:          mod.id_grupo,
-          fecha_inicio:      mod.fecha_inicio,
-          materia_ancla:     mod.materia_ancla,
-          fechas_ancla:      mod.fechas_ancla,
-          tipoError:         mod.estado,
-        }))
+        rows: s.rows.map(({ est, mod }) => {
+          const asgn = assignments.get(`${s.periodoRevision}_${est.id_sis}`)
+          return {
+            id_sis:             est.id_sis,
+            cedula:             est.cedula,
+            nombre:             est.nombre,
+            celular:            est.celular,
+            prog_seguimiento:   est.prog_seguimiento,
+            prog_plataforma:    est.prog_plataforma,
+            compat:             est.compat,
+            estado_plataforma:  est.estado_plataforma,
+            fecha_ingreso:      est.fecha_ingreso,
+            periodo_ingreso:    est.periodo_ingreso,
+            materia_plat:       mod.materia_plat || 'NO ASIGNADA',
+            grupo_plat:         mod.grupo_plat,
+            id_grupo:           mod.id_grupo,
+            fecha_inicio:       mod.fecha_inicio,
+            materia_ancla:      mod.materia_ancla,
+            fechas_ancla:       mod.fechas_ancla,
+            tipoError:          mod.estado,
+            seccion_asignada:   asgn?.section_name  || '',
+            id_grupo_asignado:  asgn?.group_id      || '',
+            sis_url_asignado:   asgn?.sis_url       || '',
+          }
+        })
       }))
     }
     try {
@@ -854,6 +1268,9 @@ export default function ReporteView({ onBack }) {
           {reportSections.map(section => {
             const pct = section.totalEnPeriodo > 0
               ? Math.round(section.rows.length / section.totalEnPeriodo * 100) : 0
+            const hasAssignments = section.rows.some(({ est }) =>
+              assignments.has(`${section.periodoRevision}_${est.id_sis}`)
+            )
             return (
               <div key={section.periodoRevision} className="mb-8 rounded-xl border border-amber-500/30 overflow-hidden">
                 <div className="px-5 py-4 bg-amber-950/25 border-b border-amber-500/25">
@@ -870,11 +1287,22 @@ export default function ReporteView({ onBack }) {
                       </h2>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <StatBadge label="Total"      value={section.totalEnPeriodo} color="zinc"/>
-                      <StatBadge label="Correctos"  value={section.totalCorrectos} color="emerald"/>
+                      <StatBadge label="Total"       value={section.totalEnPeriodo} color="zinc"/>
+                      <StatBadge label="Correctos"   value={section.totalCorrectos} color="emerald"/>
                       <StatBadge label="Con errores" value={section.rows.length}   color="red"/>
                       {section.totalEnPeriodo > 0 && (
-                        <StatBadge label="% Error"  value={`${pct}%`}             color="amber"/>
+                        <StatBadge label="% Error"   value={`${pct}%`}             color="amber"/>
+                      )}
+                      {section.rows.length > 0 && (
+                        <button
+                          onClick={() => handleOpenAsignar(section)}
+                          className={`px-4 py-2 text-xs font-mono uppercase tracking-widest font-bold rounded-lg border transition-all active:scale-95 ${
+                            hasAssignments
+                              ? 'border-violet-400 bg-violet-500/20 text-violet-200 hover:bg-violet-500 hover:text-white'
+                              : 'border-violet-500/60 bg-violet-500/10 text-violet-300 hover:bg-violet-500/25 hover:border-violet-400'
+                          }`}>
+                          {hasAssignments ? '✓ Grupos asignados ›' : 'Asignar grupos ›'}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -887,12 +1315,28 @@ export default function ReporteView({ onBack }) {
                     cohorteTo={cohortToLabel}
                     materiasRevision={section.materiasRevision}
                   />
-                  <ErrorTable rows={section.rows}/>
+                  <ErrorTable
+                    rows={section.rows}
+                    assignments={assignments}
+                    sectionPeriodo={section.periodoRevision}
+                  />
                 </div>
               </div>
             )
           })}
         </>
+      )}
+
+      {/* Asignar Grupos Modal */}
+      {asignarModal.open && asignarModal.section && (
+        <AsignarGruposModal
+          section={asignarModal.section}
+          assignments={assignments}
+          onAssign={setAssignments}
+          onClose={() => setAsignarModal({ open: false, section: null })}
+          gruposCache={gruposCache}
+          gruposLoading={gruposLoading}
+        />
       )}
     </div>
   )
