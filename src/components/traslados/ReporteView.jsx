@@ -115,6 +115,31 @@ function sisUrl(groupId) {
   return `https://sis.kuepa.com/academic-group/details/${groupId}?tab=sylabus`
 }
 
+// Normaliza texto quitando tildes y pasando a mayúsculas
+function norm(s) {
+  return (s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
+// Determina si un group_name corresponde a una materia_ancla
+function matchGroupToMateria(groupName, materiaAncla) {
+  if (!groupName || !materiaAncla) return false
+  const gn = norm(groupName)
+  const ma = norm(materiaAncla)
+
+  // Omega / Excel
+  if (ma.includes('OMEGA') || ma.includes('EXCEL')) {
+    return gn.includes('EXCEL') || gn.includes('OMEGA')
+  }
+  // Alpha / Alfa / M0 / Módulo 0
+  if (ma.includes('ALPHA') || ma.includes('ALFA') || /\bM0\b/.test(ma) || ma.includes('MODULO 0')) {
+    return gn.includes('ALPHA') || gn.includes('ALFA') || /\bM0\b/.test(gn) || gn.includes('MODULO 0')
+  }
+  // Coincidencia general por palabras significativas (≥4 chars, no stopwords)
+  const STOP = new Set(['PARA','CON','DEL','DE','LA','EL','LOS','LAS','UNA','UNO','POR','SUS','SU','EN','Y','A','E','O','AL'])
+  const words = ma.split(/[\s,\-\/]+/).filter(w => w.length >= 4 && !STOP.has(w))
+  return words.length > 0 && words.some(w => gn.includes(w))
+}
+
 function deriveTab(est) {
   const ps = (est.prog_seguimiento || '').toUpperCase()
   const pp  = est.prog_plataforma || ''
@@ -401,6 +426,7 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
   const tabs = useMemo(() => deriveTabs(section.rows), [section.rows])
 
   const [activeTab,        setActiveTab]        = useState(tabs[0] || null)
+  const [selectedMateria,  setSelectedMateria]  = useState(null)
   const [selectedGroup,    setSelectedGroup]    = useState(null)
   const [localAssignments, setLocalAssignments] = useState(() => {
     const m = new Map()
@@ -411,7 +437,7 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
     return m
   })
 
-  // Tab student counts (all tabs, not just active)
+  // Conteo por tab
   const tabCounts = useMemo(() => {
     const counts = {}
     for (const { est } of section.rows) {
@@ -421,17 +447,19 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
     return counts
   }, [section.rows])
 
-  // Enrich grupos with period + programId
+  // Enriquecer grupos; forzar parseInt en activos para evitar concatenacion de strings
   const enrichedGrupos = useMemo(() => {
     if (!gruposCache) return []
     return gruposCache.map(g => ({
       ...g,
-      programId: getProgramId(g.program_name),
-      period:    findPeriodForStartDate(g.start_date),
+      programId:       getProgramId(g.program_name),
+      period:          findPeriodForStartDate(g.start_date),
+      active_students: parseInt(g.active_students || 0),
+      count_students:  parseInt(g.count_students  || 0),
     }))
   }, [gruposCache])
 
-  // Grupos for active tab + section period
+  // Grupos del tab activo + periodo de la seccion
   const tabGrupos = useMemo(() => {
     if (!activeTab) return []
     return enrichedGrupos.filter(g =>
@@ -440,11 +468,34 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
     )
   }, [enrichedGrupos, activeTab, section.periodoRevision])
 
-  // Students for active tab
+  // Estudiantes del tab activo
   const tabStudents = useMemo(() => {
     if (!activeTab) return []
     return section.rows.filter(({ est }) => deriveTab(est).key === activeTab.key)
   }, [section.rows, activeTab])
+
+  // Materias unicas dentro del tab (de mod.materia_ancla)
+  const tabMaterias = useMemo(() => {
+    const seen = new Map()
+    for (const { mod } of tabStudents) {
+      const ma = mod.materia_ancla || ''
+      if (!ma) continue
+      seen.set(ma, (seen.get(ma) || 0) + 1)
+    }
+    return [...seen.entries()].map(([materia, count]) => ({ materia, count }))
+  }, [tabStudents])
+
+  // Grupos visibles segun materia seleccionada
+  const visibleGrupos = useMemo(() => {
+    if (!selectedMateria) return tabGrupos
+    return tabGrupos.filter(g => matchGroupToMateria(g.group_name, selectedMateria))
+  }, [tabGrupos, selectedMateria])
+
+  // Estudiantes visibles segun materia seleccionada
+  const visibleStudents = useMemo(() => {
+    if (!selectedMateria) return tabStudents
+    return tabStudents.filter(({ mod }) => mod.materia_ancla === selectedMateria)
+  }, [tabStudents, selectedMateria])
 
   function getAssignedToGroup(groupId, map) {
     let c = 0
@@ -452,32 +503,46 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
     return c
   }
 
-  function getAvailable(grupo) {
-    return Math.max(0, CAPACITY_MAX - grupo.active_students - getAssignedToGroup(grupo.group_id, localAssignments))
-  }
-
   function handleAutoAsignar() {
     const newLocal = new Map(localAssignments)
-    // Clear current tab students
-    for (const { est } of tabStudents) newLocal.delete(est.id_sis)
 
-    const sorted = [...tabGrupos].sort((a, b) => (a.group_name || '').localeCompare(b.group_name || ''))
-    let gi = 0
-    for (const { est } of tabStudents) {
-      while (gi < sorted.length) {
+    if (selectedMateria) {
+      // Asignar solo visibleStudents a visibleGrupos (matching la materia)
+      for (const { est } of visibleStudents) newLocal.delete(est.id_sis)
+      const sorted = [...visibleGrupos].sort((a, b) => (a.group_name || '').localeCompare(b.group_name || ''))
+      let gi = 0
+      for (const { est } of visibleStudents) {
+        while (gi < sorted.length) {
+          if (sorted[gi].active_students + getAssignedToGroup(sorted[gi].group_id, newLocal) < CAPACITY_MAX) break
+          gi++
+        }
+        if (gi >= sorted.length) break
         const g = sorted[gi]
-        const used = g.active_students + getAssignedToGroup(g.group_id, newLocal)
-        if (used < CAPACITY_MAX) break
-        gi++
+        newLocal.set(est.id_sis, { group_id: g.group_id, group_name: g.group_name, section_name: g.section_name, sis_url: sisUrl(g.group_id) })
       }
-      if (gi >= sorted.length) break
-      const g = sorted[gi]
-      newLocal.set(est.id_sis, {
-        group_id:     g.group_id,
-        group_name:   g.group_name,
-        section_name: g.section_name,
-        sis_url:      sisUrl(g.group_id),
-      })
+    } else {
+      // Agrupar tabStudents por materia_ancla y asignar cada sub-grupo a grupos matching
+      for (const { est } of tabStudents) newLocal.delete(est.id_sis)
+      const byMateria = new Map()
+      for (const { est, mod } of tabStudents) {
+        const ma = mod.materia_ancla || ''
+        if (!byMateria.has(ma)) byMateria.set(ma, [])
+        byMateria.get(ma).push({ est, mod })
+      }
+      for (const [materia, students] of byMateria) {
+        const matching = materia ? tabGrupos.filter(g => matchGroupToMateria(g.group_name, materia)) : tabGrupos
+        const sorted = [...matching].sort((a, b) => (a.group_name || '').localeCompare(b.group_name || ''))
+        let gi = 0
+        for (const { est } of students) {
+          while (gi < sorted.length) {
+            if (sorted[gi].active_students + getAssignedToGroup(sorted[gi].group_id, newLocal) < CAPACITY_MAX) break
+            gi++
+          }
+          if (gi >= sorted.length) break
+          const g = sorted[gi]
+          newLocal.set(est.id_sis, { group_id: g.group_id, group_name: g.group_name, section_name: g.section_name, sis_url: sisUrl(g.group_id) })
+        }
+      }
     }
     setLocalAssignments(newLocal)
   }
@@ -494,7 +559,7 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
     onClose()
   }
 
-  const assignedCount = localAssignments.size
+  const assignedCount = tabStudents.filter(({ est }) => localAssignments.has(est.id_sis)).length
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
@@ -509,11 +574,11 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-xl w-8 h-8 flex items-center justify-center">✕</button>
         </div>
 
-        {/* Tabs row */}
+        {/* Program tabs */}
         <div className="flex items-stretch border-b border-zinc-700 bg-zinc-900 flex-shrink-0 px-6 gap-1 overflow-x-auto">
           {tabs.map(tab => (
             <button key={tab.key}
-              onClick={() => { setActiveTab(tab); setSelectedGroup(null) }}
+              onClick={() => { setActiveTab(tab); setSelectedMateria(null); setSelectedGroup(null) }}
               className={`px-5 py-3 text-xs font-mono font-bold uppercase tracking-widest border-b-2 whitespace-nowrap transition-all flex-shrink-0 ${
                 activeTab?.key === tab.key
                   ? 'border-violet-400 text-violet-300'
@@ -524,11 +589,35 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
             </button>
           ))}
           <div className="ml-auto flex items-center py-2 flex-shrink-0">
-            <button disabled
-              className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest rounded border border-zinc-700 text-zinc-600 cursor-not-allowed whitespace-nowrap">
+            <button disabled className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest rounded border border-zinc-700 text-zinc-600 cursor-not-allowed whitespace-nowrap">
               SUGERENCIA IA · EN DESARROLLO
             </button>
           </div>
+        </div>
+
+        {/* Materia filter bar */}
+        <div className="flex items-center gap-2 px-5 py-2 border-b border-zinc-800 bg-zinc-900/60 flex-shrink-0 overflow-x-auto">
+          <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest flex-shrink-0">Materia:</span>
+          <button
+            onClick={() => { setSelectedMateria(null); setSelectedGroup(null) }}
+            className={`px-2.5 py-1 text-[10px] font-mono rounded border whitespace-nowrap transition-all flex-shrink-0 ${
+              !selectedMateria
+                ? 'border-zinc-400 bg-zinc-700 text-white font-bold'
+                : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'
+            }`}>
+            Todas ({tabStudents.length})
+          </button>
+          {tabMaterias.map(({ materia, count }) => (
+            <button key={materia}
+              onClick={() => { setSelectedMateria(prev => prev === materia ? null : materia); setSelectedGroup(null) }}
+              className={`px-2.5 py-1 text-[10px] font-mono rounded border whitespace-nowrap transition-all flex-shrink-0 ${
+                selectedMateria === materia
+                  ? 'border-emerald-400 bg-emerald-900/30 text-emerald-200 font-bold'
+                  : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+              }`}>
+              {materia} ({count})
+            </button>
+          ))}
         </div>
 
         {/* Body */}
@@ -536,24 +625,22 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
 
           {/* Groups panel */}
           <div className="w-72 flex-shrink-0 border-r border-zinc-700 flex flex-col">
-            <div className="px-4 py-3 border-b border-zinc-700 bg-zinc-900 flex-shrink-0">
-              <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">Grupos disponibles</div>
-              {activeTab && (
-                <div className="text-xs font-mono text-violet-300 mt-0.5">
-                  {activeTab.key} · {section.periodoRevision}
-                </div>
-              )}
+            <div className="px-4 py-2.5 border-b border-zinc-700 bg-zinc-900 flex-shrink-0">
+              <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">
+                {selectedMateria ? <span>Grupos para: <span className="text-emerald-400">{selectedMateria}</span></span> : `Grupos · ${activeTab?.key || ''}`}
+              </div>
+              <div className="text-[10px] font-mono text-zinc-600 mt-0.5">
+                {visibleGrupos.length} disponible{visibleGrupos.length !== 1 ? 's' : ''} · {section.periodoRevision}
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {gruposLoading ? (
-                <div className="text-center text-zinc-500 text-xs py-8 font-mono">
-                  <span className="animate-pulse">Cargando grupos...</span>
-                </div>
-              ) : tabGrupos.length === 0 ? (
+                <div className="text-center text-zinc-500 text-xs py-8 font-mono animate-pulse">Cargando grupos...</div>
+              ) : visibleGrupos.length === 0 ? (
                 <div className="text-center text-zinc-600 text-xs py-8 font-mono leading-relaxed">
-                  Sin grupos encontrados<br/>para este período
+                  {selectedMateria ? `Sin grupos para\n"${selectedMateria}"` : 'Sin grupos para este periodo'}
                 </div>
-              ) : tabGrupos.map(g => {
+              ) : visibleGrupos.map(g => {
                 const assignedHere = getAssignedToGroup(g.group_id, localAssignments)
                 const total        = g.active_students + assignedHere
                 const available    = Math.max(0, CAPACITY_MAX - total)
@@ -562,11 +649,11 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
                 const full         = available === 0
                 return (
                   <div key={g.group_id}
-                    onClick={() => setSelectedGroup(isSel ? null : g)}
-                    className={`rounded-lg border p-3 cursor-pointer transition-all ${
-                      isSel ? 'border-violet-400 bg-violet-950/40 shadow-[0_0_10px_rgba(167,139,250,0.2)]' :
+                    onClick={() => !full && setSelectedGroup(isSel ? null : g)}
+                    className={`rounded-lg border p-3 transition-all ${
+                      isSel ? 'border-violet-400 bg-violet-950/40 shadow-[0_0_10px_rgba(167,139,250,0.2)] cursor-pointer' :
                       full  ? 'border-red-500/30 bg-red-950/10 opacity-50 cursor-default' :
-                      'border-zinc-700 bg-zinc-900 hover:border-zinc-500 hover:bg-zinc-800/60'
+                      'border-zinc-700 bg-zinc-900 hover:border-zinc-500 hover:bg-zinc-800/60 cursor-pointer'
                     }`}>
                     <div className="flex items-start justify-between mb-1 gap-2">
                       <div className="text-xs text-zinc-200 font-medium leading-tight">{g.group_name}</div>
@@ -581,8 +668,8 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
                       }`} style={{ width: `${pct}%` }}/>
                     </div>
                     <div className="text-[9px] font-mono text-zinc-600 mt-1">
-                      {total}/{CAPACITY_MAX}
-                      {assignedHere > 0 && <span className="text-violet-400 ml-1.5">+{assignedHere} asignados aquí</span>}
+                      {total}/{CAPACITY_MAX} activos
+                      {assignedHere > 0 && <span className="text-violet-400 ml-1.5">+{assignedHere} aqui</span>}
                     </div>
                   </div>
                 )
@@ -592,54 +679,53 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
               <button onClick={handleAutoAsignar}
                 disabled={tabGrupos.length === 0 || gruposLoading}
                 className="w-full py-2 text-xs font-mono uppercase tracking-widest rounded-lg border border-violet-500/50 bg-violet-500/5 text-violet-300 hover:bg-violet-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-                ⟳ Auto-asignar secuencial
+                {selectedMateria ? `Auto-asignar ${selectedMateria.split(' ')[0]}` : 'Auto-asignar por materia'}
               </button>
             </div>
           </div>
 
           {/* Students panel */}
           <div className="flex-1 flex flex-col min-w-0">
-            <div className="px-4 py-3 border-b border-zinc-700 bg-zinc-900 flex-shrink-0 flex items-center justify-between gap-4">
+            <div className="px-4 py-2.5 border-b border-zinc-700 bg-zinc-900 flex-shrink-0 flex items-center justify-between gap-4">
               <div>
                 <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">Estudiantes con errores</div>
                 <div className="text-xs font-mono text-zinc-300 mt-0.5">
-                  {tabStudents.length} en esta tab ·{' '}
-                  <span className="text-violet-300">
-                    {tabStudents.filter(({ est }) => localAssignments.has(est.id_sis)).length} asignados
-                  </span>
+                  {visibleStudents.length} visible{visibleStudents.length !== 1 ? 's' : ''} ·{' '}
+                  <span className="text-violet-300 font-semibold">{assignedCount}/{tabStudents.length}</span> asignados
                 </div>
               </div>
               {selectedGroup ? (
-                <div className="text-xs font-mono border border-violet-500/40 bg-violet-950/20 text-violet-300 px-3 py-1.5 rounded-lg flex-shrink-0">
-                  Asignando a: <span className="font-bold">{selectedGroup.group_name}</span>
+                <div className="text-[10px] font-mono border border-violet-500/40 bg-violet-950/20 text-violet-300 px-3 py-1.5 rounded-lg flex-shrink-0 text-center leading-tight">
+                  <div className="opacity-60 text-[9px]">Asignando a:</div>
+                  <div className="font-bold">{selectedGroup.group_name}</div>
                 </div>
               ) : (
                 <div className="text-[10px] font-mono text-zinc-600 italic flex-shrink-0">
-                  ← Selecciona un grupo
+                  Selecciona un grupo
                 </div>
               )}
             </div>
             <div className="flex-1 overflow-y-auto">
-              {tabStudents.length === 0 ? (
-                <div className="text-center text-zinc-600 text-xs py-12 font-mono">Sin estudiantes para esta tab</div>
+              {visibleStudents.length === 0 ? (
+                <div className="text-center text-zinc-600 text-xs py-12 font-mono">Sin estudiantes para esta seleccion</div>
               ) : (
                 <table className="w-full text-xs font-mono border-collapse">
                   <thead className="sticky top-0 bg-zinc-900 border-b border-zinc-700 z-10">
                     <tr>
                       <th className="w-10 px-3 py-2.5"/>
-                      <th className="text-left px-3 py-2.5 text-zinc-500 uppercase tracking-wide text-[10px] font-semibold">Nombre</th>
-                      <th className="text-left px-3 py-2.5 text-zinc-500 uppercase tracking-wide text-[10px] font-semibold">Cédula</th>
-                      <th className="text-left px-3 py-2.5 text-zinc-500 uppercase tracking-wide text-[10px] font-semibold">Estado</th>
-                      <th className="text-left px-3 py-2.5 text-zinc-500 uppercase tracking-wide text-[10px] font-semibold">Grupo asignado</th>
+                      <th className="text-left px-3 py-2.5 text-zinc-500 text-[10px] font-semibold uppercase tracking-wide">Nombre</th>
+                      <th className="text-left px-3 py-2.5 text-zinc-500 text-[10px] font-semibold uppercase tracking-wide">Cedula</th>
+                      <th className="text-left px-3 py-2.5 text-emerald-700 text-[10px] font-semibold uppercase tracking-wide">Materia correcta</th>
+                      <th className="text-left px-3 py-2.5 text-violet-700 text-[10px] font-semibold uppercase tracking-wide">Grupo asignado</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tabStudents.map(({ est }, i) => {
+                    {visibleStudents.map(({ est, mod }, i) => {
                       const asgn      = localAssignments.get(est.id_sis)
                       const isChecked = !!asgn
-                      const ep        = estadoInfo(est.estado_plataforma)
+                      const mismatch  = asgn && !matchGroupToMateria(asgn.group_name, mod.materia_ancla)
                       return (
-                        <tr key={est.id_sis} className={`border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors ${
+                        <tr key={est.id_sis} className={`border-b border-zinc-800 hover:bg-zinc-800/40 transition-colors ${
                           i % 2 === 0 ? '' : 'bg-zinc-800/20'
                         }`}>
                           <td className="px-3 py-2 text-center">
@@ -666,19 +752,22 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
                               className="accent-violet-500 cursor-pointer w-4 h-4"
                             />
                           </td>
-                          <td className="px-3 py-2 text-white">{est.nombre || '—'}</td>
+                          <td className="px-3 py-2 text-white font-medium">{est.nombre || '—'}</td>
                           <td className="px-3 py-2 text-zinc-400">{est.cedula || '—'}</td>
                           <td className="px-3 py-2">
-                            <span className={`${ep.cls} text-[10px]`}>{est.estado_plataforma || '—'}</span>
+                            <span className="text-emerald-300 text-[10px] font-medium">{mod.materia_ancla || '—'}</span>
                           </td>
                           <td className="px-3 py-2">
                             {asgn ? (
                               <div>
-                                <div className="text-violet-300 font-medium">{asgn.group_name}</div>
+                                <div className={`font-medium text-[11px] ${mismatch ? 'text-amber-300' : 'text-violet-300'}`}>
+                                  {mismatch && <span className="mr-1">⚠</span>}
+                                  {asgn.group_name}
+                                </div>
                                 <div className="text-zinc-500 text-[10px]">{asgn.section_name}</div>
                               </div>
                             ) : (
-                              <span className="text-zinc-600 italic">Sin asignar</span>
+                              <span className="text-zinc-600 italic text-[10px]">Sin asignar</span>
                             )}
                           </td>
                         </tr>
@@ -691,10 +780,10 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
           </div>
         </div>
 
-        {/* Modal footer */}
+        {/* Footer */}
         <div className="px-6 py-4 border-t border-zinc-700 bg-zinc-900 flex items-center justify-between flex-shrink-0">
           <div className="text-xs text-zinc-500 font-mono">
-            <span className="text-violet-300 font-semibold">{assignedCount}</span> estudiante{assignedCount !== 1 ? 's' : ''} asignado{assignedCount !== 1 ? 's' : ''} en total
+            <span className="text-violet-300 font-bold">{assignedCount}</span>/{tabStudents.length} asignados en este tab
           </div>
           <div className="flex items-center gap-3">
             <button onClick={onClose}
@@ -703,7 +792,7 @@ function AsignarGruposModal({ section, assignments, onAssign, onClose, gruposCac
             </button>
             <button onClick={handleConfirm}
               className="px-5 py-2 text-xs font-mono uppercase tracking-widest font-bold border border-violet-500 bg-violet-500/15 text-violet-300 hover:bg-violet-500 hover:text-white rounded-lg transition-all active:scale-95">
-              ✓ Confirmar asignación
+              ✓ Confirmar asignacion
             </button>
           </div>
         </div>
