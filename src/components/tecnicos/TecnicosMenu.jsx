@@ -83,15 +83,15 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
           </p>
         </div>
 
-        {/* Divider */}
-        <div className="flex items-center gap-4 mb-8">
-          <div className="flex-1 h-px bg-primary/20" />
-          <span className="text-primary/30 text-[10px] font-mono tracking-widest">3 ACTIVAS · 1 EN DESARROLLO</span>
-          <div className="flex-1 h-px bg-primary/20" />
+        {/* ── Sección LECTIVA ── */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-1 h-5 bg-primary/70 rounded-sm flex-shrink-0" />
+          <span className="text-[11px] font-mono tracking-[0.5em] uppercase text-primary/70 font-semibold">LECTIVA</span>
+          <div className="flex-1 h-px bg-primary/15" />
         </div>
 
-        {/* Cards */}
-        <div className="flex flex-col gap-3">
+        {/* Cards LECTIVA */}
+        <div className="flex flex-col gap-3 mb-10">
 
           {/* Card 1: Malla Curricular */}
           <div
@@ -217,10 +217,49 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
 
         </div>
 
+        {/* ── Sección PRODUCTIVA ── */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-1 h-5 bg-amber-500/70 rounded-sm flex-shrink-0" />
+          <span className="text-[11px] font-mono tracking-[0.5em] uppercase text-amber-500/70 font-semibold">PRODUCTIVA</span>
+          <div className="flex-1 h-px bg-amber-500/15" />
+        </div>
+
+        {/* Cards PRODUCTIVA */}
+        <div className="flex flex-col gap-3 mb-10">
+
+          {/* Placeholder */}
+          <div className="bg-background-card border border-zinc-700/30 corner-box flex items-stretch relative opacity-60 cursor-not-allowed select-none">
+            <div className="w-24 flex-shrink-0 flex flex-col items-center justify-center border-r border-zinc-700/30 p-4 gap-3">
+              <span className="font-mono text-xs text-zinc-600">05</span>
+              <span className="text-4xl">🏗️</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+            </div>
+            <div className="flex-1 px-6 py-5 flex flex-col justify-center min-w-0">
+              <div className="flex items-center gap-3 mb-1">
+                <span className="text-[9px] font-mono tracking-[0.3em] uppercase border px-2 py-0.5 text-zinc-500 border-zinc-700/50 bg-zinc-800/50">
+                  PRÓXIMAMENTE
+                </span>
+              </div>
+              <h3 className="font-display font-black text-lg uppercase tracking-wider text-zinc-500 mb-1">
+                Herramientas Productiva
+              </h3>
+              <p className="text-text-muted text-sm leading-relaxed">
+                Nuevas herramientas para la gestión de la etapa productiva. En desarrollo.
+              </p>
+            </div>
+            <div className="w-48 flex-shrink-0 flex items-center justify-center border-l border-zinc-700/30 p-4">
+              <button disabled className="w-full py-2.5 px-4 text-[11px] font-mono uppercase tracking-[0.2em] border border-zinc-700/50 bg-zinc-800/30 text-zinc-600 text-center">
+                PRONTO <span className="opacity-60">›</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
         {/* Footer info */}
         <div className="mt-8 flex items-center justify-between text-[10px] font-mono text-text-muted tracking-widest">
           <span>KUEPA EDUCATION SYSTEMS</span>
-          <span>TÉCNICOS EDTH — v1.2.0</span>
+          <span>TÉCNICOS EDTH — v1.3.0</span>
         </div>
       </div>
     </div>
