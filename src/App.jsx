@@ -6,9 +6,10 @@ import AnclaViewer from './components/anclas/AnclaViewer'
 import ValidacionView from './components/traslados/ValidacionView'
 import ReporteView from './components/traslados/ReporteView'
 import DisponibilidadView from './components/traslados/DisponibilidadView'
+import ValidacionProductivaView from './components/traslados/ValidacionProductivaView'
 
 export default function App() {
-  const [view, setView] = useState('home') // 'home' | 'tecnicos' | 'anclas' | 'validacion' | 'reporte' | 'disponibilidad'
+  const [view, setView] = useState('home') // 'home' | 'tecnicos' | 'anclas' | 'validacion' | 'reporte' | 'disponibilidad' | 'validacion-productiva'
 
   return (
     <Layout>
@@ -34,6 +35,9 @@ export default function App() {
       )}
       {view === 'disponibilidad' && (
         <DisponibilidadView onBack={() => setView('tecnicos')} />
+      )}
+      {view === 'validacion-productiva' && (
+        <ValidacionProductivaView onBack={() => setView('tecnicos')} />
       )}
     </Layout>
   )
