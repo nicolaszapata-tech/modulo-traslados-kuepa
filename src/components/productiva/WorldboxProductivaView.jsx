@@ -1,6 +1,46 @@
 import { useState, useEffect, useMemo } from 'react'
 
 const STATS_URL = 'https://n8n.kuepa.com/webhook/worldbox-productiva-stats'
+const HIST_KEY  = 'kuepa_worldbox_history_v1'
+const MIN_REF_MS = 60 * 60 * 1000 // 1 hour minimum to use as reference
+
+function timeAgo(isoStr) {
+  const diff = Date.now() - new Date(isoStr).getTime()
+  const h = Math.floor(diff / 3600_000)
+  const m = Math.floor((diff % 3600_000) / 60_000)
+  if (h >= 24) return `hace ${Math.floor(h / 24)}d`
+  if (h > 0)   return `hace ${h}h ${m}min`
+  return `hace ${m}min`
+}
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]') } catch { return [] }
+}
+
+function appendHistory(counts) {
+  const hist = loadHistory()
+  const now  = Date.now()
+  const last  = hist[hist.length - 1]
+  if (!last || now - new Date(last.at).getTime() > 1800_000) {
+    hist.push({ counts, at: new Date().toISOString() })
+    if (hist.length > 96) hist.splice(0, hist.length - 96) // keep ~2 days at 30min intervals
+    localStorage.setItem(HIST_KEY, JSON.stringify(hist))
+  }
+}
+
+function computeDeltas(currentCounts) {
+  const hist = loadHistory()
+  const now  = Date.now()
+  // Find oldest entry that is at least 1h ago (prefer ~24h, fallback to oldest)
+  const candidates = hist.filter(h => now - new Date(h.at).getTime() >= MIN_REF_MS)
+  if (!candidates.length) return null
+  const ref = candidates[0] // oldest available reference
+  const deltas = {}
+  for (const k of Object.keys(currentCounts)) {
+    deltas[k] = (currentCounts[k] ?? 0) - (ref.counts[k] ?? 0)
+  }
+  return { deltas, refAt: ref.at }
+}
 
 const CIVS = [
   {
@@ -422,8 +462,9 @@ function CitizenLayer({ civ, count }) {
 
 // ── Territory panel ───────────────────────────────────────────────
 
-function TerritoryPanel({ civ, count, onHover }) {
+function TerritoryPanel({ civ, count, delta, onHover }) {
   const level = getLevel(count)
+  const hasDelta = delta != null && delta !== 0
   return (
     <div
       style={{ border: `1px solid ${civ.accent}30`, background: civ.skyFrom, position: 'relative' }}
@@ -434,8 +475,13 @@ function TerritoryPanel({ civ, count, onHover }) {
       <div style={{ borderBottom: `1px solid ${civ.accent}22`, background: `${civ.accent}10` }}
            className="flex items-center justify-between px-4 py-2.5">
         <div>
-          <div className="font-mono font-bold text-xs uppercase tracking-wider" style={{ color: civ.accent }}>
+          <div className="font-mono font-bold text-xs uppercase tracking-wider flex items-center gap-2" style={{ color: civ.accent }}>
             {civ.label}
+            {hasDelta && (
+              <span style={{ color: delta > 0 ? '#4ade80' : '#f87171', fontSize: 9 }}>
+                {delta > 0 ? '▲' : '▼'}{Math.abs(delta)}
+              </span>
+            )}
           </div>
           <div className="text-[9px] font-mono opacity-40 mt-0.5" style={{ color: civ.accent }}>
             {civ.sublabel}
@@ -477,17 +523,22 @@ function TerritoryPanel({ civ, count, onHover }) {
 // ── Main component ────────────────────────────────────────────────
 
 export default function WorldboxProductivaView({ onBack }) {
-  const [stats,   setStats]   = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState(null)
-  const [hov,     setHov]     = useState(null)
+  const [stats,    setStats]    = useState(null)
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState(null)
+  const [hov,      setHov]      = useState(null)
+  const [growth,   setGrowth]   = useState(null) // { deltas: {...}, refAt: isoStr }
 
   const load = async () => {
     setLoading(true); setError(null)
     try {
       const r = await fetch(STATS_URL)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      setStats(await r.json())
+      const data = await r.json()
+      const g = computeDeltas(data.counts)
+      setGrowth(g)
+      appendHistory(data.counts)
+      setStats(data)
     } catch (e) { setError(e.message) }
     finally { setLoading(false) }
   }
@@ -556,8 +607,22 @@ export default function WorldboxProductivaView({ onBack }) {
         {stats && (
           <div className="text-right border border-amber-500/20 bg-amber-950/20 px-5 py-3">
             <div className="text-[9px] font-mono text-amber-500/50 uppercase tracking-widest">Total estudiantes activos</div>
-            <div className="font-display font-black text-4xl text-amber-400">{total}</div>
-            <div className="text-[9px] font-mono text-text-muted mt-0.5">{stats.calculado}</div>
+            <div className="flex items-end justify-end gap-2">
+              <div className="font-display font-black text-4xl text-amber-400">{total}</div>
+              {growth && (() => {
+                const totalDelta = Object.values(growth.deltas).reduce((s, v) => s + v, 0)
+                if (totalDelta === 0) return null
+                return (
+                  <span style={{ color: totalDelta > 0 ? '#4ade80' : '#f87171' }} className="font-mono text-sm font-bold pb-1">
+                    {totalDelta > 0 ? '▲' : '▼'}{Math.abs(totalDelta)}
+                  </span>
+                )
+              })()}
+            </div>
+            <div className="text-[9px] font-mono text-text-muted mt-0.5">
+              {stats.calculado}
+              {growth && <span className="ml-2 text-white/25">· ref {timeAgo(growth.refAt)}</span>}
+            </div>
           </div>
         )}
       </div>
@@ -592,6 +657,7 @@ export default function WorldboxProductivaView({ onBack }) {
               key={civ.key}
               civ={civ}
               count={counts[civ.key] ?? 0}
+              delta={growth?.deltas?.[civ.key] ?? null}
               onHover={setHov}
             />
           ))}
@@ -634,6 +700,23 @@ export default function WorldboxProductivaView({ onBack }) {
               <div className="text-white/40 mb-0.5">Nivel</div>
               <div style={{ color: hov.accent }} className="font-bold">{getLevel(counts[hov.key] ?? 0)} / 6</div>
             </div>
+            {growth && (() => {
+              const d = growth.deltas[hov.key] ?? 0
+              const pct = counts[hov.key] > 0 ? Math.round(Math.abs(d) / counts[hov.key] * 100) : 0
+              return (
+                <div className="text-[10px] font-mono border-l border-white/10 pl-6">
+                  <div className="text-white/40 mb-0.5">Variación vs {timeAgo(growth.refAt)}</div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: d > 0 ? '#4ade80' : d < 0 ? '#f87171' : '#a0a0b0', fontSize: 14, lineHeight: 1 }}>
+                      {d > 0 ? '▲' : d < 0 ? '▼' : '—'}
+                    </span>
+                    <span style={{ color: d > 0 ? '#4ade80' : d < 0 ? '#f87171' : '#a0a0b0' }} className="font-bold">
+                      {d === 0 ? 'Sin cambio' : `${d > 0 ? '+' : ''}${d} (${pct}%)`}
+                    </span>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         ) : (
           <div className="text-[10px] font-mono text-text-muted flex items-center gap-2">
