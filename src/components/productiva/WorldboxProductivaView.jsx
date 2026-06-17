@@ -169,9 +169,142 @@ function Monument({ x, y, pal }) {
   )
 }
 
+// ── Finalizado-exclusive buildings ────────────────────────────────
+
+function Fountain({ x, y, pal }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <ellipse cx="0" cy="-4" rx="16" ry="5"  fill={pal.stone} />
+      <ellipse cx="0" cy="-4" rx="14" ry="4"  fill="#0a2a4a" />
+      <rect x="-3" y="-18" width="6" height="14" fill={pal.stone} />
+      <ellipse cx="0" cy="-18" rx="10" ry="3"  fill={pal.stone} />
+      <ellipse cx="0" cy="-18" rx="8"  ry="2.5" fill="#0a3a5a" />
+      <line x1="0" y1="-20" x2="-8" y2="-30" stroke="#87ceeb" strokeWidth="1.5">
+        <animate attributeName="opacity" values="0.4;0.9;0.4" dur="1.4s" repeatCount="indefinite" />
+      </line>
+      <line x1="0" y1="-20" x2="8"  y2="-30" stroke="#87ceeb" strokeWidth="1.5">
+        <animate attributeName="opacity" values="0.9;0.4;0.9" dur="1.4s" repeatCount="indefinite" />
+      </line>
+      <line x1="0" y1="-20" x2="0"  y2="-34" stroke="#87ceeb" strokeWidth="2">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="1s" repeatCount="indefinite" />
+      </line>
+    </g>
+  )
+}
+
+function Temple({ x, y, pal }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <rect x="-22" y="-6"  width="44" height="6" fill={pal.stone} />
+      <rect x="-19" y="-10" width="38" height="4" fill={pal.stone} />
+      <rect x="-17" y="-36" width="34" height="26" fill={pal.wall} />
+      {[-12,-4,4,12].map(cx => (
+        <rect key={cx} x={cx-2} y="-36" width="4" height="26" fill={pal.stone} />
+      ))}
+      <polygon points="-19,-36 0,-52 19,-36" fill={pal.roof} />
+      <polygon points="-19,-36 -17,-35 0,-51 0,-52" fill="rgba(0,0,0,0.15)" />
+      <rect x="-5" y="-18" width="10" height="18" fill={pal.door} />
+      <circle cx="0" cy="-44" r="4" fill={pal.accent} opacity="0.7">
+        <animate attributeName="opacity" values="0.35;0.9;0.35" dur="3s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  )
+}
+
+function Fortress({ x, y, pal }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <rect x="-22" y="-42" width="44" height="42" fill={pal.stone} />
+      <rect x="-22" y="-42" width="5"  height="42" fill={pal.wallDark || '#b08040'} opacity="0.35" />
+      {[-20,-12,-4,4,12].map(bx => (
+        <rect key={bx} x={bx} y="-48" width="6" height="8" fill={pal.stone} />
+      ))}
+      <rect x="-16" y="-34" width="8"  height="10" fill="#080810" />
+      <rect x="8"   y="-34" width="8"  height="10" fill="#080810" />
+      <rect x="-5"  y="-22" width="10" height="14" fill="#080810" />
+      <rect x="-9"  y="-14" width="18" height="14" fill={pal.door} />
+      <ellipse cx="0" cy="-14" rx="9" ry="5" fill={pal.wallDark || '#b08040'} />
+      <line x1="-16" y1="-48" x2="-16" y2="-62" stroke={pal.wood} strokeWidth="1.5" />
+      <polygon points="-16,-62 -4,-58 -16,-54" fill={pal.accent}>
+        <animateTransform attributeName="transform" type="rotate"
+          values="-6 -16 -62;6 -16 -62;-6 -16 -62" dur="2.2s" repeatCount="indefinite" />
+      </polygon>
+      <line x1="16"  y1="-48" x2="16"  y2="-62" stroke={pal.wood} strokeWidth="1.5" />
+      <polygon points="16,-62 28,-58 16,-54" fill={pal.accent}>
+        <animateTransform attributeName="transform" type="rotate"
+          values="6 16 -62;-6 16 -62;6 16 -62" dur="1.9s" repeatCount="indefinite" />
+      </polygon>
+    </g>
+  )
+}
+
+function TriumphArch({ x, y, pal }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <rect x="-28" y="-54" width="14" height="54" fill={pal.stone} />
+      <rect x="14"  y="-54" width="14" height="54" fill={pal.stone} />
+      <rect x="-28" y="-60" width="56" height="10" fill={pal.wall} />
+      <rect x="-14" y="-52" width="28" height="38" fill="rgba(0,0,0,0.45)" />
+      <ellipse cx="0" cy="-52" rx="14" ry="7" fill="rgba(0,0,0,0.4)" />
+      <rect x="-22" y="-64" width="44" height="4" fill={pal.accent} opacity="0.55" />
+      {[-20,20].map(ix => (
+        <rect key={ix} x={ix-2} y="-54" width="4" height="54" fill={pal.wallDark || '#b08040'} opacity="0.3" />
+      ))}
+      <circle cx="0" cy="-57" r="18" fill="none" stroke={pal.accent} strokeWidth="1">
+        <animate attributeName="opacity" values="0.1;0.45;0.1" dur="2.8s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  )
+}
+
 // ── Territory SVG scene ───────────────────────────────────────────
 
+function FinalizadoScene({ level }) {
+  const civ = CIVS[3]
+  const p   = civ.pal
+  const gy  = 148
+  return (
+    <svg viewBox="0 0 380 180" width="100%" height="180" style={{ display: 'block' }}>
+      <defs>
+        <linearGradient id="sky-finalizado" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={civ.skyFrom} />
+          <stop offset="100%" stopColor={civ.skyTo} />
+        </linearGradient>
+        <radialGradient id="glow-fin" cx="50%" cy="80%" r="60%">
+          <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="#fbbf24" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect x="0" y="0" width="380" height={gy} fill="url(#sky-finalizado)" />
+      {level >= 2 && <rect x="0" y="0" width="380" height={gy} fill="url(#glow-fin)" />}
+      {[25,70,120,185,250,310,355,55,160,285,335].map((sx, i) => (
+        <circle key={i} cx={sx} cy={8+(i*9)%28} r={i%4===0?1.5:1} fill="#ffd700" opacity="0.28">
+          <animate attributeName="opacity" values="0.1;0.6;0.1" dur={`${1.4+i%3}s`} begin={`${i*0.3}s`} repeatCount="indefinite" />
+        </circle>
+      ))}
+      <rect x="0" y={gy}   width="380" height={180-gy} fill={civ.terrainDark} />
+      <rect x="0" y={gy}   width="380" height="8"      fill={civ.terrain} />
+      <rect x="0" y={gy+5} width="380" height="3"      fill={civ.terrainDark} opacity="0.5" />
+      {level >= 1 && <rect x="40" y={gy-1} width="300" height="5" fill={civ.path} opacity="0.95" rx="1" />}
+      {level < 4 && <Tree x={16}  y={gy-3} />}
+      {level < 4 && <Tree x={364} y={gy-2} />}
+      {level < 2 && <Tree x={200} y={gy-5} />}
+      {level >= 1 && <>
+        <SmallHouse x={88}  y={gy} pal={p} />
+        <SmallHouse x={168} y={gy} pal={p} />
+        <SmallHouse x={252} y={gy} pal={p} />
+      </>}
+      {level >= 2 && <Fountain x={322} y={gy-4} pal={p} />}
+      {level >= 3 && <Temple   x={140} y={gy}   pal={p} />}
+      {level >= 4 && <Market   x={216} y={gy}   pal={p} />}
+      {level >= 5 && <Fortress x={50}  y={gy}   pal={p} />}
+      {level >= 6 && <TriumphArch x={185} y={gy} pal={p} />}
+    </svg>
+  )
+}
+
 function TerritoryScene({ civ, level }) {
+  if (civ.key === 'finalizado') return <FinalizadoScene level={level} />
   const p = civ.pal
   const gy = 148
   const dark = civ.key === 'proyeccion'
@@ -252,17 +385,18 @@ function TerritoryScene({ civ, level }) {
 
 function CitizenLayer({ civ, count }) {
   const citizenCount = getCitizenCount(count)
+  const isFin = civ.key === 'finalizado'
   const citizens = useMemo(() => Array.from({ length: citizenCount }, (_, i) => {
     const seed = i * 41 + civ.key.charCodeAt(0) * 17
     return {
       id: i,
       y:        10 + (seed % 22),
-      duration: 7 + (seed % 7),
+      duration: isFin ? 14 + (seed % 8) : 7 + (seed % 7),
       delay:    -((seed * 13) % 13),
       color:    civ.citizenColors[i % civ.citizenColors.length],
       rtl:      i % 3 === 1,
     }
-  }), [civ.key, citizenCount])
+  }), [civ.key, citizenCount, isFin])
 
   if (!citizenCount) return null
   return (
@@ -270,9 +404,10 @@ function CitizenLayer({ civ, count }) {
       {citizens.map(c => (
         <div key={c.id} style={{
           position: 'absolute', bottom: c.y, left: 0,
-          width: 8, height: 18, zIndex: 5,
+          width: 8, height: isFin ? 22 : 18, zIndex: 5,
           animation: `${c.rtl ? 'wb-rtl' : 'wb-ltr'} ${c.duration}s linear ${c.delay}s infinite`,
         }}>
+          {isFin && <div style={{ width: 10, height: 3, background: '#fbbf24', marginLeft: -1, borderRadius: 1, marginBottom: 1 }} />}
           <div style={{ width: 8, height: 5, background: '#f0c090', borderRadius: '4px 4px 0 0' }} />
           <div style={{ width: 8, height: 9, background: c.color, marginTop: 1 }} />
           <div style={{ display: 'flex', gap: 2, marginTop: 1 }}>
@@ -487,8 +622,14 @@ export default function WorldboxProductivaView({ onBack }) {
             </div>
             <div className="text-[10px] font-mono">
               <div className="text-white/40 mb-0.5">Ciudadanos visibles</div>
-              <div className="text-white/75">{getCitizenCount(counts[hov.key] ?? 0)} caminando</div>
+              <div className="text-white/75">{getCitizenCount(counts[hov.key] ?? 0)} {hov.key === 'finalizado' ? 'graduados' : 'caminando'}</div>
             </div>
+            {hov.key === 'finalizado' && (
+              <div className="text-[10px] font-mono border-l border-amber-500/30 pl-4">
+                <div className="text-amber-500/60 mb-0.5">Criterio</div>
+                <div className="text-amber-400/80">fecha_fin &lt; hoy · incluye graduados</div>
+              </div>
+            )}
             <div className="text-[10px] font-mono">
               <div className="text-white/40 mb-0.5">Nivel</div>
               <div style={{ color: hov.accent }} className="font-bold">{getLevel(counts[hov.key] ?? 0)} / 6</div>
@@ -505,12 +646,13 @@ export default function WorldboxProductivaView({ onBack }) {
       {/* Bottom legend */}
       <div className="flex items-center gap-1 flex-wrap border border-white/5 bg-black/20 px-4 py-2.5">
         <span className="text-[9px] font-mono uppercase tracking-widest text-text-muted mr-3">Evolución por umbral</span>
-        {[[20,'3 casas'],[50,'+ molino'],[100,'+ caminos + edificio'],[150,'+ mercado'],[200,'+ torre'],[300,'+ monumento']].map(([n, lbl]) => (
+        {[[20,'3 casas'],[50,'+ molino / fuente★'],[100,'+ edificio / templo★'],[150,'+ mercado'],[200,'+ torre / fortaleza★'],[300,'+ monumento / arco★']].map(([n, lbl]) => (
           <div key={n} className="flex items-center gap-1 border border-white/10 px-2 py-1 rounded-sm">
             <span className="text-[9px] font-mono text-amber-400/70">{n}+</span>
             <span className="text-[9px] font-mono text-text-muted">→ {lbl}</span>
           </div>
         ))}
+        <span className="text-[9px] font-mono text-amber-500/50 ml-1">★ exclusivo Finalizado</span>
       </div>
     </div>
   )
