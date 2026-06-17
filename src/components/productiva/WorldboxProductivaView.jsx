@@ -45,7 +45,7 @@ function computeDeltas(currentCounts) {
 const CIVS = [
   {
     key: 'adaptacion', label: 'ADAPTACIÓN', sublabel: 'Meses 1–3',
-    levels: ['Tierra Vacía', 'Aldea Inicial', 'Pueblo Naciente', 'Villa Activa', 'Pueblo Próspero', 'Ciudad Emergente', 'Gran Aldea'],
+    levels: ['Tierra Vacía','Aldea Inicial','Pueblo Naciente','Villa Activa','Pueblo Próspero','Ciudad Emergente','Gran Aldea','Ciudad Amurallada','Metrópolis Joven','Gran Metrópolis','Megalópolis','Megaciudad','Civilización Cumbre'],
     skyFrom: '#0b160a', skyTo: '#18300f',
     terrain: '#2d5c1e', terrainDark: '#1e3c14', path: '#8B7355',
     pal: { wall: '#c8a06a', wallDark: '#a07040', roof: '#8b2020', door: '#5c3010', win: '#87ceeb', wood: '#8B4513', stone: '#9a8a7a', accent: '#f59e0b' },
@@ -54,7 +54,7 @@ const CIVS = [
   },
   {
     key: 'desempeno', label: 'DESEMPEÑO', sublabel: 'Meses 4–7',
-    levels: ['Tierra Vacía', 'Asentamiento', 'Pueblo Creciente', 'Villa Activa', 'Ciudad Menor', 'Ciudad Media', 'Gran Ciudad'],
+    levels: ['Tierra Vacía','Asentamiento','Pueblo Creciente','Villa Activa','Ciudad Menor','Ciudad Media','Gran Ciudad','Ciudad Fortaleza','Ciudad Imperial','Metrópolis','Gran Metrópolis','Megalópolis','Imperio'],
     skyFrom: '#080f1e', skyTo: '#0e1e3a',
     terrain: '#1a3c2a', terrainDark: '#102818', path: '#5a6878',
     pal: { wall: '#8090a8', wallDark: '#5a6878', roof: '#1e3a5a', door: '#1a3050', win: '#9dd5ef', wood: '#5a6070', stone: '#6a7a8a', accent: '#38bdf8' },
@@ -63,7 +63,7 @@ const CIVS = [
   },
   {
     key: 'proyeccion', label: 'PROYECCIÓN', sublabel: 'Meses 8–11',
-    levels: ['Tierra Vacía', 'Colonia', 'Pueblo Arcano', 'Villa Mística', 'Ciudad Arcana', 'Ciudad Mágica', 'Metrópolis'],
+    levels: ['Tierra Vacía','Colonia','Pueblo Arcano','Villa Mística','Ciudad Arcana','Ciudad Mágica','Metrópolis','Bastión Arcano','Sanctum Supremo','Nexo Místico','Convergencia','El Nexo','La Singularidad'],
     skyFrom: '#0c0818', skyTo: '#1a1038',
     terrain: '#1a1440', terrainDark: '#100c28', path: '#6a5a80',
     pal: { wall: '#8878a8', wallDark: '#5a4878', roof: '#3a2060', door: '#201040', win: '#d8a0ff', wood: '#6a5a80', stone: '#7a6a8a', accent: '#a78bfa' },
@@ -72,7 +72,7 @@ const CIVS = [
   },
   {
     key: 'finalizado', label: 'FINALIZADO', sublabel: 'Completado',
-    levels: ['Tierra Vacía', 'Pueblo Dorado', 'Villa de Oro', 'Ciudad Rica', 'Gran Ciudad', 'Capital', 'Imperio'],
+    levels: ['Tierra Vacía','Pueblo Dorado','Villa de Oro','Ciudad Rica','Gran Ciudad','Capital','Imperio','Imperio Amurallado','Gran Imperio','Metrópolis Imperial','Coloso Áureo','Maravilla','El Eterno Imperio'],
     skyFrom: '#180e00', skyTo: '#281800',
     terrain: '#3a2800', terrainDark: '#281a00', path: '#b8962a',
     pal: { wall: '#d4b06a', wallDark: '#b08040', roof: '#8a5010', door: '#5a3000', win: '#ffd700', wood: '#a07030', stone: '#c0a060', accent: '#fbbf24' },
@@ -82,12 +82,18 @@ const CIVS = [
 ]
 
 function getLevel(n) {
-  if (n >= 300) return 6
-  if (n >= 200) return 5
-  if (n >= 150) return 4
-  if (n >= 100) return 3
-  if (n >= 50)  return 2
-  if (n >= 20)  return 1
+  if (n >= 2000) return 12
+  if (n >= 1500) return 11
+  if (n >= 1000) return 10
+  if (n >= 750)  return 9
+  if (n >= 500)  return 8
+  if (n >= 400)  return 7
+  if (n >= 300)  return 6
+  if (n >= 200)  return 5
+  if (n >= 150)  return 4
+  if (n >= 100)  return 3
+  if (n >= 50)   return 2
+  if (n >= 20)   return 1
   return 0
 }
 
@@ -99,7 +105,12 @@ function getCitizenCount(n) {
   if (n < 150)   return 9
   if (n < 200)   return 13
   if (n < 300)   return 17
-  return 21
+  if (n < 400)   return 20
+  if (n < 500)   return 23
+  if (n < 750)   return 25
+  if (n < 1000)  return 27
+  if (n < 1500)  return 29
+  return 30
 }
 
 // ── SVG pixel-art building components ─────────────────────────────
@@ -205,6 +216,108 @@ function Monument({ x, y, pal }) {
       <circle cx="0" cy="-76" r="4" fill={pal.accent}>
         <animate attributeName="opacity" values="0.4;1;0.4" dur="1.8s" repeatCount="indefinite" />
       </circle>
+    </g>
+  )
+}
+
+// ── High-level buildings (levels 7–12) ───────────────────────────
+
+function BackgroundSilhouettes({ pal, level }) {
+  const op = level >= 9 ? 0.65 : 0.38
+  const wd = pal.wallDark || pal.wall
+  return (
+    <g opacity={op}>
+      <rect x="46"  y="90" width="20" height="58" fill={wd} />
+      <polygon points="46,90 56,72 66,90" fill={pal.roof} />
+      <rect x="80"  y="78" width="16" height="70" fill={wd} />
+      <polygon points="80,78 88,56 96,78" fill={pal.roof} />
+      <rect x="103" y="95" width="24" height="53" fill={wd} />
+      <rect x="222" y="86" width="22" height="62" fill={wd} />
+      <rect x="260" y="73" width="18" height="75" fill={wd} />
+      <polygon points="260,73 269,50 278,73" fill={pal.roof} />
+      <rect x="296" y="90" width="20" height="58" fill={wd} />
+      {level >= 9 && <>
+        <rect x="143" y="62" width="24" height="86" fill={wd} />
+        <polygon points="143,62 155,38 167,62" fill={pal.roof} />
+        <rect x="198" y="76" width="14" height="72" fill={wd} />
+      </>}
+    </g>
+  )
+}
+
+function WallTowers({ pal, gy }) {
+  return (
+    <>
+      <rect x="0"   y={gy-42} width="16" height="42" fill={pal.stone} />
+      {[0,8].map(bx => <rect key={bx} x={bx}   y={gy-50} width="6" height="10" fill={pal.stone} />)}
+      <rect x="3"   y={gy-32} width="7"  height="12" fill="#050510" />
+      <rect x="364" y={gy-42} width="16" height="42" fill={pal.stone} />
+      {[362,370].map(bx => <rect key={bx} x={bx} y={gy-50} width="6" height="10" fill={pal.stone} />)}
+      <rect x="369" y={gy-32} width="7"  height="12" fill="#050510" />
+    </>
+  )
+}
+
+function GrandCathedral({ x, y, pal }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <rect x="-18" y="-54" width="36" height="54" fill={pal.wall} />
+      <rect x="-24" y="-76" width="14" height="76" fill={pal.stone} />
+      <rect x="10"  y="-76" width="14" height="76" fill={pal.stone} />
+      <polygon points="-24,-76 -17,-96 -10,-76" fill={pal.roof} />
+      <polygon points="10,-76 17,-96 24,-76"   fill={pal.roof} />
+      <circle cx="0" cy="-36" r="9" fill={pal.win} />
+      <circle cx="0" cy="-36" r="7" fill="none" stroke={pal.accent} strokeWidth="1.5" />
+      <line x1="0" y1="-45" x2="0" y2="-27" stroke={pal.accent} strokeWidth="1" />
+      <line x1="-9" y1="-36" x2="9" y2="-36" stroke={pal.accent} strokeWidth="1" />
+      <rect x="-6"  y="-20" width="12" height="20" fill={pal.door} />
+      <ellipse cx="0" cy="-20" rx="6" ry="4" fill={pal.door} />
+      <circle cx="0" cy="-36" r="9" fill="none" stroke={pal.accent} strokeWidth="0.5">
+        <animate attributeName="opacity" values="0.15;0.75;0.15" dur="3s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  )
+}
+
+function GrandPyramid({ x, y, pal }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <rect x="-28" y="-8"  width="56" height="8"  fill={pal.stone} />
+      <rect x="-22" y="-14" width="44" height="6"  fill={pal.stone} />
+      <rect x="-15" y="-18" width="30" height="4"  fill={pal.stone} />
+      <polygon points="-13,-18 0,-82 13,-18" fill={pal.wall} />
+      <polygon points="-13,-18 0,-82 0,-18"  fill="rgba(0,0,0,0.22)" />
+      <line x1="-8" y1="-36" x2="8"  y2="-36" stroke={pal.accent} strokeWidth="1" opacity="0.5" />
+      <line x1="-5" y1="-56" x2="5"  y2="-56" stroke={pal.accent} strokeWidth="1" opacity="0.5" />
+      <polygon points="-3,-77 0,-86 3,-77" fill={pal.accent} />
+      <circle cx="0" cy="-82" r="5" fill={pal.accent} opacity="0.4">
+        <animate attributeName="opacity" values="0.2;0.8;0.2" dur="2s" repeatCount="indefinite" />
+        <animate attributeName="r"       values="4;7;4"       dur="2s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  )
+}
+
+function Colosseum({ x, y, pal }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <ellipse cx="0" cy="-18" rx="22" ry="18" fill={pal.stone} />
+      <ellipse cx="0" cy="-18" rx="16" ry="13" fill={pal.wallDark || pal.stone} />
+      <ellipse cx="0" cy="-18" rx="10" ry="8"  fill="#080810" />
+      {[-16,-8,0,8,16].map((ax,i) => (
+        <rect key={i} x={ax-3} y="-28" width="5" height="12" fill="#080810" opacity="0.65" />
+      ))}
+      <ellipse cx="0" cy="-32" rx="22" ry="4" fill={pal.stone} opacity="0.85" />
+      <line x1="-16" y1="-32" x2="-16" y2="-42" stroke={pal.wood} strokeWidth="1" />
+      <polygon points="-16,-42 -9,-39 -16,-36" fill={pal.accent}>
+        <animateTransform attributeName="transform" type="rotate"
+          values="-5 -16 -42;5 -16 -42;-5 -16 -42" dur="2.1s" repeatCount="indefinite" />
+      </polygon>
+      <line x1="16" y1="-32" x2="16" y2="-42" stroke={pal.wood} strokeWidth="1" />
+      <polygon points="16,-42 23,-39 16,-36" fill={pal.accent}>
+        <animateTransform attributeName="transform" type="rotate"
+          values="5 16 -42;-5 16 -42;5 16 -42" dur="1.8s" repeatCount="indefinite" />
+      </polygon>
     </g>
   )
 }
@@ -326,19 +439,24 @@ function FinalizadoScene({ level }) {
       <rect x="0" y={gy}   width="380" height="8"      fill={civ.terrain} />
       <rect x="0" y={gy+5} width="380" height="3"      fill={civ.terrainDark} opacity="0.5" />
       {level >= 1 && <rect x="40" y={gy-1} width="300" height="5" fill={civ.path} opacity="0.95" rx="1" />}
-      {level < 4 && <Tree x={16}  y={gy-3} />}
-      {level < 4 && <Tree x={364} y={gy-2} />}
-      {level < 2 && <Tree x={200} y={gy-5} />}
+      {level >= 8 && <BackgroundSilhouettes pal={p} level={level} />}
+      {level < 7 && <Tree x={16}  y={gy-3} />}
+      {level < 7 && <Tree x={364} y={gy-2} />}
+      {level < 4 && <Tree x={200} y={gy-5} />}
       {level >= 1 && <>
         <SmallHouse x={88}  y={gy} pal={p} />
         <SmallHouse x={168} y={gy} pal={p} />
         <SmallHouse x={252} y={gy} pal={p} />
       </>}
-      {level >= 2 && <Fountain x={322} y={gy-4} pal={p} />}
-      {level >= 3 && <Temple   x={140} y={gy}   pal={p} />}
-      {level >= 4 && <Market   x={216} y={gy}   pal={p} />}
-      {level >= 5 && <Fortress x={50}  y={gy}   pal={p} />}
-      {level >= 6 && <TriumphArch x={185} y={gy} pal={p} />}
+      {level >= 2  && level < 11 && <Fountain   x={322} y={gy-4} pal={p} />}
+      {level >= 11 &&               <Colosseum  x={322} y={gy}   pal={p} />}
+      {level >= 3  && level < 9  && <Temple        x={140} y={gy} pal={p} />}
+      {level >= 9  &&               <GrandCathedral x={140} y={gy} pal={p} />}
+      {level >= 4  && <Market   x={216} y={gy}   pal={p} />}
+      {level >= 5  && <Fortress x={50}  y={gy}   pal={p} />}
+      {level >= 6  && level < 10 && <TriumphArch x={185} y={gy} pal={p} />}
+      {level >= 10 &&               <GrandPyramid x={185} y={gy} pal={p} />}
+      {level >= 7  && <WallTowers pal={p} gy={gy} />}
     </svg>
   )
 }
@@ -383,10 +501,13 @@ function TerritoryScene({ civ, level }) {
         <rect x="52" y={gy - 1} width="276" height="5" fill={civ.path} opacity="0.9" rx="1" />
       )}
 
-      {/* Trees */}
-      <Tree x={16}  y={gy - 3} dark={dark} />
-      <Tree x={364} y={gy - 2} dark={dark} />
-      {level < 4 && <Tree x={32} y={gy - 1} dark={dark} />}
+      {/* Background city silhouettes (level 8+) — rendered before foreground */}
+      {level >= 8 && <BackgroundSilhouettes pal={p} level={level} />}
+
+      {/* Trees — disappear as city densifies */}
+      {level < 7 && <Tree x={16}  y={gy - 3} dark={dark} />}
+      {level < 7 && <Tree x={364} y={gy - 2} dark={dark} />}
+      {level < 4 && <Tree x={32}  y={gy - 1} dark={dark} />}
       {level < 3 && <>
         <Tree x={180} y={gy - 5} dark={dark} />
         <Tree x={346} y={gy - 3} dark={dark} />
@@ -403,11 +524,13 @@ function TerritoryScene({ civ, level }) {
         <SmallHouse x={252} y={gy} pal={p} />
       </>}
 
-      {/* Level 2+: Mill */}
-      {level >= 2 && <Mill x={322} y={gy} pal={p} />}
+      {/* Level 2–10: Mill / Level 11+: Colosseum */}
+      {level >= 2  && level < 11 && <Mill      x={322} y={gy} pal={p} />}
+      {level >= 11 && <Colosseum x={322} y={gy} pal={p} />}
 
-      {/* Level 3+: Medium building */}
-      {level >= 3 && <MediumBuilding x={138} y={gy} pal={p} />}
+      {/* Level 3–8: Medium building / Level 9+: Grand Cathedral */}
+      {level >= 3 && level < 9 && <MediumBuilding  x={138} y={gy} pal={p} />}
+      {level >= 9 &&              <GrandCathedral   x={138} y={gy} pal={p} />}
 
       {/* Level 4+: Market */}
       {level >= 4 && <Market x={216} y={gy} pal={p} />}
@@ -415,8 +538,12 @@ function TerritoryScene({ civ, level }) {
       {/* Level 5+: Tower */}
       {level >= 5 && <Tower x={60} y={gy} pal={p} />}
 
-      {/* Level 6+: Monument */}
-      {level >= 6 && <Monument x={188} y={gy} pal={p} />}
+      {/* Level 6–9: Monument / Level 10+: Grand Pyramid */}
+      {level >= 6 && level < 10 && <Monument     x={188} y={gy} pal={p} />}
+      {level >= 10 &&              <GrandPyramid  x={188} y={gy} pal={p} />}
+
+      {/* Level 7+: Wall towers at edges (rendered last = on top) */}
+      {level >= 7 && <WallTowers pal={p} gy={gy} />}
     </svg>
   )
 }
@@ -505,12 +632,12 @@ function TerritoryPanel({ civ, count, delta, onHover }) {
               Nivel {level} — {civ.levels[level]}
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 4, background: 'rgba(0,0,0,0.6)', padding: '3px 6px', borderRadius: 2 }}>
-            {[1,2,3,4,5,6].map(l => (
+          <div style={{ display: 'flex', gap: 3, background: 'rgba(0,0,0,0.6)', padding: '3px 6px', borderRadius: 2 }}>
+            {Array.from({length:12},(_,i)=>i+1).map(l => (
               <div key={l} style={{
-                width: 6, height: 6, borderRadius: '50%',
+                width: 4, height: 4, borderRadius: '50%',
                 background: l <= level ? civ.accent : 'rgba(255,255,255,0.1)',
-                boxShadow: l <= level ? `0 0 5px ${civ.accent}80` : 'none',
+                boxShadow: l <= level ? `0 0 4px ${civ.accent}90` : 'none',
               }} />
             ))}
           </div>
@@ -729,13 +856,17 @@ export default function WorldboxProductivaView({ onBack }) {
       {/* Bottom legend */}
       <div className="flex items-center gap-1 flex-wrap border border-white/5 bg-black/20 px-4 py-2.5">
         <span className="text-[9px] font-mono uppercase tracking-widest text-text-muted mr-3">Evolución por umbral</span>
-        {[[20,'3 casas'],[50,'+ molino / fuente★'],[100,'+ edificio / templo★'],[150,'+ mercado'],[200,'+ torre / fortaleza★'],[300,'+ monumento / arco★']].map(([n, lbl]) => (
+        {[
+          [20,'3 casas'],[50,'molino★'],[100,'edificio★'],[150,'mercado'],
+          [200,'torre★'],[300,'monumento★'],[400,'murallas'],[500,'catedral'],
+          [750,'bg densa'],[1000,'pirámide'],[1500,'coliseo★'],[2000,'maravilla'],
+        ].map(([n, lbl]) => (
           <div key={n} className="flex items-center gap-1 border border-white/10 px-2 py-1 rounded-sm">
             <span className="text-[9px] font-mono text-amber-400/70">{n}+</span>
-            <span className="text-[9px] font-mono text-text-muted">→ {lbl}</span>
+            <span className="text-[9px] font-mono text-text-muted">{lbl}</span>
           </div>
         ))}
-        <span className="text-[9px] font-mono text-amber-500/50 ml-1">★ exclusivo Finalizado</span>
+        <span className="text-[9px] font-mono text-amber-500/50 ml-1">★ variante Finalizado</span>
       </div>
     </div>
   )
