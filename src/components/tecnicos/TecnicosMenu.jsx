@@ -227,7 +227,7 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
         {/* Cards PRODUCTIVA */}
         <div className="flex flex-col gap-3 mb-10">
 
-          {/* Card: Validación Productiva */}
+          {/* Card 05: Validación Productiva */}
           <div
             className="bg-background-card border border-amber-500/30 corner-box hover:border-amber-500/70 hover:bg-background-elevated transition-all duration-300 flex items-stretch relative cursor-pointer"
             onClick={() => onNavigate('validacion-productiva')}
@@ -240,7 +240,7 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
             <div className="flex-1 px-6 py-5 flex flex-col justify-center min-w-0">
               <div className="flex items-center gap-3 mb-1">
                 <span className="text-[9px] font-mono tracking-[0.3em] uppercase border px-2 py-0.5 text-amber-400 border-amber-500/30 bg-amber-500/10">
-                  NUEVO
+                  ACTIVO
                 </span>
               </div>
               <h3 className="font-display font-black text-lg uppercase tracking-wider text-amber-400 mb-1">
@@ -249,6 +249,68 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
               <p className="text-text-secondary text-sm leading-relaxed">
                 Verifica que los estudiantes en etapa productiva tengan asignadas correctamente sus etapas de
                 Adaptación, Desempeño y Proyección, según su fecha de ingreso a productiva.
+              </p>
+            </div>
+            <div className="w-48 flex-shrink-0 flex items-center justify-center border-l border-amber-500/30 p-4">
+              <button className="w-full py-2.5 px-4 text-[11px] font-mono uppercase tracking-[0.2em] border border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-400 hover:text-background transition-all duration-200 text-center active:scale-95">
+                ABRIR <span className="opacity-60">›</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Card 06: Malla Productiva */}
+          <div
+            className="bg-background-card border border-amber-500/30 corner-box hover:border-amber-500/70 hover:bg-background-elevated transition-all duration-300 flex items-stretch relative cursor-pointer"
+            onClick={() => onNavigate('malla-productiva')}
+          >
+            <div className="w-24 flex-shrink-0 flex flex-col items-center justify-center border-r border-amber-500/30 p-4 gap-3">
+              <span className="font-mono text-xs text-amber-500 opacity-40">06</span>
+              <span className="text-4xl">📅</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            </div>
+            <div className="flex-1 px-6 py-5 flex flex-col justify-center min-w-0">
+              <div className="flex items-center gap-3 mb-1">
+                <span className="text-[9px] font-mono tracking-[0.3em] uppercase border px-2 py-0.5 text-amber-400 border-amber-500/30 bg-amber-500/10">
+                  NUEVO
+                </span>
+              </div>
+              <h3 className="font-display font-black text-lg uppercase tracking-wider text-amber-400 mb-1">
+                Malla Productiva
+              </h3>
+              <p className="text-text-secondary text-sm leading-relaxed">
+                Visualiza las etapas Adaptación, Desempeño y Proyección calculadas por fecha de ingreso a productiva.
+                Muestra la etapa activa hoy y permite agregar nuevas cohortes.
+              </p>
+            </div>
+            <div className="w-48 flex-shrink-0 flex items-center justify-center border-l border-amber-500/30 p-4">
+              <button className="w-full py-2.5 px-4 text-[11px] font-mono uppercase tracking-[0.2em] border border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-400 hover:text-background transition-all duration-200 text-center active:scale-95">
+                ABRIR <span className="opacity-60">›</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Card 07: WorldBox Productiva */}
+          <div
+            className="bg-background-card border border-amber-500/30 corner-box hover:border-amber-500/70 hover:bg-background-elevated transition-all duration-300 flex items-stretch relative cursor-pointer"
+            onClick={() => onNavigate('worldbox-productiva')}
+          >
+            <div className="w-24 flex-shrink-0 flex flex-col items-center justify-center border-r border-amber-500/30 p-4 gap-3">
+              <span className="font-mono text-xs text-amber-500 opacity-40">07</span>
+              <span className="text-4xl">🌍</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            </div>
+            <div className="flex-1 px-6 py-5 flex flex-col justify-center min-w-0">
+              <div className="flex items-center gap-3 mb-1">
+                <span className="text-[9px] font-mono tracking-[0.3em] uppercase border px-2 py-0.5 text-amber-400 border-amber-500/30 bg-amber-500/10">
+                  NUEVO
+                </span>
+              </div>
+              <h3 className="font-display font-black text-lg uppercase tracking-wider text-amber-400 mb-1">
+                WorldBox Productiva
+              </h3>
+              <p className="text-text-secondary text-sm leading-relaxed">
+                Visualización de civilizaciones por etapa — Adaptación, Desempeño, Proyección y Finalizado.
+                Pasa el mouse sobre cada zona para ver las cohortes activas en esa etapa hoy.
               </p>
             </div>
             <div className="w-48 flex-shrink-0 flex items-center justify-center border-l border-amber-500/30 p-4">

@@ -7,9 +7,11 @@ import ValidacionView from './components/traslados/ValidacionView'
 import ReporteView from './components/traslados/ReporteView'
 import DisponibilidadView from './components/traslados/DisponibilidadView'
 import ValidacionProductivaView from './components/traslados/ValidacionProductivaView'
+import MallaProductivaView from './components/productiva/MallaProductivaView'
+import WorldboxProductivaView from './components/productiva/WorldboxProductivaView'
 
 export default function App() {
-  const [view, setView] = useState('home') // 'home' | 'tecnicos' | 'anclas' | 'validacion' | 'reporte' | 'disponibilidad' | 'validacion-productiva'
+  const [view, setView] = useState('home') // 'home' | 'tecnicos' | 'anclas' | 'validacion' | 'reporte' | 'disponibilidad' | 'validacion-productiva' | 'malla-productiva' | 'worldbox-productiva'
 
   return (
     <Layout>
@@ -38,6 +40,12 @@ export default function App() {
       )}
       {view === 'validacion-productiva' && (
         <ValidacionProductivaView onBack={() => setView('tecnicos')} />
+      )}
+      {view === 'malla-productiva' && (
+        <MallaProductivaView onBack={() => setView('tecnicos')} />
+      )}
+      {view === 'worldbox-productiva' && (
+        <WorldboxProductivaView onBack={() => setView('tecnicos')} />
       )}
     </Layout>
   )
