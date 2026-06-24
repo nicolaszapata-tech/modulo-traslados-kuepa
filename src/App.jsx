@@ -9,15 +9,20 @@ import DisponibilidadView from './components/traslados/DisponibilidadView'
 import ValidacionProductivaView from './components/traslados/ValidacionProductivaView'
 import MallaProductivaView from './components/productiva/MallaProductivaView'
 import WorldboxProductivaView from './components/productiva/WorldboxProductivaView'
+import BachillerMenu from './components/bachiller/BachillerMenu'
+import MallaBachView from './components/bachiller/MallaBachView'
+import ValidacionBachView from './components/bachiller/ValidacionBachView'
+import ReporteBachView from './components/bachiller/ReporteBachView'
 
 export default function App() {
-  const [view, setView] = useState('home') // 'home' | 'tecnicos' | 'anclas' | 'validacion' | 'reporte' | 'disponibilidad' | 'validacion-productiva' | 'malla-productiva' | 'worldbox-productiva'
+  const [view, setView] = useState('home') // 'home' | 'tecnicos' | ... | 'bachiller' | 'malla-bach' | 'validacion-bach'
 
   return (
     <Layout>
       {view === 'home' && (
         <CampaignSelector onSelectCampaign={(id) => {
-          if (id === 'tecnicos') setView('tecnicos')
+          if (id === 'tecnicos')  setView('tecnicos')
+          if (id === 'bachiller') setView('bachiller')
         }} />
       )}
       {view === 'tecnicos' && (
@@ -46,6 +51,21 @@ export default function App() {
       )}
       {view === 'worldbox-productiva' && (
         <WorldboxProductivaView onBack={() => setView('tecnicos')} />
+      )}
+      {view === 'bachiller' && (
+        <BachillerMenu
+          onNavigate={setView}
+          onBack={() => setView('home')}
+        />
+      )}
+      {view === 'malla-bach' && (
+        <MallaBachView onBack={() => setView('bachiller')} />
+      )}
+      {view === 'validacion-bach' && (
+        <ValidacionBachView onBack={() => setView('bachiller')} />
+      )}
+      {view === 'reporte-bach' && (
+        <ReporteBachView onBack={() => setView('bachiller')} />
       )}
     </Layout>
   )

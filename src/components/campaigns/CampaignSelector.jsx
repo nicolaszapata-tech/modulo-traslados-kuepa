@@ -10,7 +10,7 @@ const campaigns = [
   },
   {
     id: 'bachiller',
-    title: 'BACHILLER EDH',
+    title: 'BACHILLER KUEPA',
     description: 'Gestión de traslados para programas de bachillerato académico. Control de historial y documentación.',
     icon: '📚',
     status: 'active'

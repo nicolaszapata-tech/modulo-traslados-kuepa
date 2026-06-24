@@ -1,7 +1,8 @@
 # Módulo de Traslados Kuepa — Registro de Proyecto
 
-> Última actualización: 2026-04-13
+> Última actualización: 2026-06-23
 > URL producción: https://modulo-traslados-kuepa.vercel.app
+> Versión actual: v1.5.0
 
 ---
 
@@ -12,8 +13,9 @@ Sistema web para gestionar traslados de estudiantes de programas **Técnicos Lab
 **Stack:**
 - Frontend: React + Vite + Tailwind CSS v3
 - Deploy: Vercel (plan gratuito)
-- Backend futuro: n8n (n8n.kuepa.com) vía webhooks
-- Datos: localStorage (calendario) + archivos de configuración estáticos
+- Backend: n8n (n8n.kuepa.com) vía webhooks — **YA CONECTADO**
+- Base de datos: Supabase (tabla `seguimiento_etdh`) — **YA CONECTADA**
+- Datos locales: localStorage (calendario, cohortes productiva) + archivos de configuración estáticos
 
 ---
 
@@ -23,13 +25,15 @@ Sistema web para gestionar traslados de estudiantes de programas **Técnicos Lab
 src/
 ├── data/
 │   ├── calendar.js       → Períodos y fechas 2025-2027 + localStorage para años nuevos
-│   └── programs.js       → Config de programas técnicos (ancla, materias, color)
+│   ├── programs.js       → Config de programas técnicos (ancla, materias, color)
+│   └── productiva.js     → 67 cohortes BASE + cálculo etapas + localStorage CRUD + Supabase sync
 │
 ├── engine/
 │   └── anchorEngine.js   → Motor de cálculo de mallas (traducción directa de la macro)
 │
 ├── utils/
-│   └── dateUtils.js      → Parseo de fechas d/m/yyyy, detección de período activo hoy
+│   ├── dateUtils.js      → Parseo de fechas d/m/yyyy, detección de período activo hoy
+│   └── validacionUtils.js → normalizarPrograma, sonProgramasCompatibles, validarFechaModulo, getPeriodoFromFecha
 │
 ├── components/
 │   ├── layout/
@@ -41,16 +45,62 @@ src/
 │   │   ├── CampaignCard.jsx     → Card horizontal con estado (active/locked/development)
 │   │   └── CampaignSelector.jsx → Landing con grid de campañas
 │   │
+│   ├── tecnicos/
+│   │   └── TecnicosMenu.jsx  → Submenú TÉCNICOS EDTH con 7 herramientas (4 LECTIVA + 3 PRODUCTIVA)
+│   │                            Incluye badge de último sync en tiempo real
+│   │
 │   ├── anclas/
-│   │   ├── AnclaViewer.jsx  → Vista principal de malla curricular
-│   │   ├── AnclaTable.jsx   → Tabla con búsqueda, filtro HOY, vista compacta/completa
-│   │   └── AddYearModal.jsx → Modal para agregar/editar fechas por año
+│   │   ├── AnclaViewer.jsx   → Vista principal de malla curricular
+│   │   ├── AnclaTable.jsx    → Tabla con búsqueda, filtro HOY, vista compacta/completa
+│   │   └── AddYearModal.jsx  → Modal para agregar/editar fechas por año
+│   │
+│   ├── traslados/
+│   │   ├── ValidacionView.jsx         → Validación completa de traslados (llama webhook + tabla 8 módulos)
+│   │   │                                Incluye tab "REPORTE" integrado (por período + tipo)
+│   │   ├── ReporteView.jsx            → Vista standalone de reporte (ruta propia, actualmente también
+│   │   │                                existe como componente interno de ValidacionView)
+│   │   ├── DisponibilidadView.jsx     → Disponibilidad de grupos por período (EN DESARROLLO)
+│   │   └── ValidacionProductivaView.jsx → Validación de etapas productivas por estudiante
+│   │
+│   ├── productiva/
+│   │   ├── MallaProductivaView.jsx    → Tabla de etapas (Adaptación/Desempeño/Proyección/Finalizado)
+│   │   │                                Filtro por año, sync Supabase, gestión CRUD de cohortes
+│   │   ├── AddCohortModal.jsx         → Modal para agregar/editar cohortes
+│   │   └── WorldboxProductivaView.jsx → Visualización estilo "civilizaciones" de cohortes por etapa
+│   │                                    Hover sobre zonas para ver cohortes activas hoy
 │   │
 │   └── common/
 │       ├── Badge.jsx    → Badges de estado
-│       └── Button.jsx   → Botón reutilizable (no usado actualmente en anclas)
+│       └── Button.jsx   → Botón reutilizable
 │
-└── App.jsx → Navegación por estado: 'home' | 'anclas'
+│
+│   └── bachiller/
+│       ├── BachillerMenu.jsx        → Submenú BACHILLER KUEPA con 4 herramientas
+│       ├── ValidacionBachView.jsx   → Validación de asignaciones Bach (filtros multi-select,
+│       │                              acordeón por grado, tooltips portal, estado de plataforma)
+│       ├── MallaBachView.jsx        → Tabla de anclas Bach (motor calendarBach.js)
+│       ├── GestionFechasBach.jsx    → CRUD de fechas de calendarios III/IV y V/VI en localStorage
+│       └── ReporteBachView.jsx      → Reporte de materias erradas Bach:
+│                                      - Selector de años con badges de error
+│                                      - Calendario FASE 1 (ENE-MAY) + FASE 2 (JUL-NOV)
+│                                      - Celdas: nombre completo de materia (sin abreviatura)
+│                                      - Clic en celda → panel de fechas Cal III/IV + V/VI
+│                                      - Tablas múltiples por año+mes+materia (solo al seleccionar)
+│                                      - Export CSV + Export Google Sheets (hoja por año·fase·mes·materia)
+│
+├── data/
+│   └── calendarBach.js  → FECHAS_III_IV, FECHAS_V_VI (2022-2027), MATERIAS_BASE,
+│                          ANCLAS_REGULAR, ANCLAS_FLEX, COLOR_GRADO, getBachAvailableYears,
+│                          getCalendario (base + localStorage)
+│
+├── engine/
+│   └── anchorEngineBach.js → getAnchorRows, construirSecuencia, calcularEstado,
+│                             getGradoActual — motor fiel al Apps Script original
+│
+└── App.jsx → Navegación por estado:
+              'home' | 'tecnicos' | 'anclas' | 'validacion' | 'reporte' |
+              'disponibilidad' | 'validacion-productiva' | 'malla-productiva' | 'worldbox-productiva' |
+              'bachiller' | 'validacion-bach' | 'malla-bach' | 'fechas-bach' | 'reporte-bach'
 ```
 
 ---
@@ -86,37 +136,109 @@ subject             = subjects[posicionEnBaraja]
 
 ---
 
-## 5. Hoja ASIGNACION — Qué contiene
+## 5. Sistema Productiva — Cómo funciona
+
+Los estudiantes en etapa Productiva tienen 3 sub-etapas calculadas a partir de la fecha de ingreso a productiva:
+
+| Etapa | Duración | Materia en plataforma |
+|-------|----------|-----------------------|
+| Adaptación | Ingreso → ingreso+3 meses | `Etapa 1_ Adaptación` |
+| Desempeño | Ingreso+3m → ingreso+7m | `Etapa 2_Desempeño` |
+| Proyección | Ingreso+7m → fecha fin | `Etapa3_Proyección` |
+
+**Datos:** 67 cohortes BASE en `productiva.js` + localStorage (`kuepa_productiva_cohorts_v2`) + sync desde Supabase.
+
+**Supabase:** tabla `seguimiento_etdh` con columnas `fecha_ingreso_productiva`, `fecha_fin_productiva`, `etapa`.
+
+---
+
+## 6. Hoja ASIGNACION — Qué contiene
 
 La hoja de Google Sheets tiene dos bloques por estudiante:
 
-**Bloque A — Perfil:**
-- ID, Cédula, Nombre, Celular
+**Bloque A — Perfil (cols A-N):**
+- ID SIS, Cédula, Nombre, Celular
 - Programa en seguimiento vs programa en plataforma
 - Confirmación de compatibilidad (✓)
 - Fecha de ingreso real y período calculado
 - Estado en plataforma (ej: "Retiro académico")
+- Total incorrectos (col N)
 
-**Bloque B — Validación módulo a módulo (M1 a M7+):**
-- FILE 2: lo que tiene asignado en la plataforma (materia, grupo, ID grupo MongoDB, fecha inicio)
-- ANCLA: lo que debería tener según el motor de anclas (materia, fechas, período)
-- ESTADO: `CORRECTO` o `INCORRECTO - FECHA FUERA DE RANGO`
-- TOTAL INCORRECTOS: resumen de cuántos módulos están mal
+**Bloque B — Validación módulo a módulo (M1 a M8, 8 columnas x módulo):**
+```
+[Materia Plat] [Grupo Plat] [ID Grupo MongoDB] [Fecha Inicio]
+[Materia Ancla] [Fechas Ancla] [Período Ancla] [ESTADO]
+```
+
+**ESTADO posibles valores:**
+- `CORRECTO` — materia y fechas coinciden
+- `INCORRECTO - FECHA FUERA DE RANGO` — la materia puede coincidir pero las fechas no
+- `FALTA MATERIA` — el módulo no está asignado en plataforma
 
 **Propósito:** auditar si los grupos asignados en plataforma corresponden a las fechas y materias correctas según anclas.
 
 ---
 
-## 6. Funcionalidades Implementadas
+## 7. Webhooks n8n — Endpoints activos
 
-### 6.1 Landing Page
+### Técnicos EDTH
+
+| Webhook | Método | Descripción |
+|---------|--------|-------------|
+| `https://n8n.kuepa.com/webhook/ultimo-sync-etdh` | GET | Devuelve `{lastSync: ISO}` con la hora del último sync de SEGUIMIENTO |
+| `https://n8n.kuepa.com/webhook/asignacion-etdh` | POST | Proceso completo: SEGUIMIENTO → BigQuery Programas → Períodos → BigQuery Módulos → Proceso → Response. Devuelve `{rows: [...], meta: {total, sin_errores, con_errores}}` |
+| `https://n8n.kuepa.com/webhook/disponibilidad-grupos-etdh` | GET/POST | Disponibilidad de grupos por período (en desarrollo) |
+| `https://n8n.kuepa.com/webhook/reporte-export-etdh` | POST | Genera Google Sheets del reporte de erradas ETDH. Retorna `{url}` |
+| `https://n8n.kuepa.com/webhook/reporte-slack-etdh` | POST | Notifica resultado a Slack |
+
+**Flujo `asignacion-etdh` (8 nodos):**
+1. Webhook Trigger
+2. HTTP Supabase (lee SEGUIMIENTO)
+3. Leer SEGUIMIENTO (Code node)
+4. BigQuery — Programas
+5. Cruzar Programas (Code node)
+6. BigQuery — Módulos
+7. Proceso Completo (Code node — lógica central)
+8. Respond to Webhook
+
+### Bachillerato EDH
+
+| Webhook | Método | Descripción |
+|---------|--------|-------------|
+| `https://n8n.kuepa.com/webhook/asignacion-bach` | POST | Proceso completo Bach: BigQuery VKU10_student_program_groups → motor de anclas → cruce → validación. Devuelve `{rows: [...]}` con array plano (6 cols base + 80×8 módulos) |
+| `https://n8n.kuepa.com/webhook/reporte-export-bach` | POST | Genera Google Sheets del reporte de erradas Bach, una hoja por `año · FASE · mes · materia`. Retorna `{url}` |
+
+**Flujo `asignacion-bach` (6 nodos, ID: `h0SxkzCzoCDXMMXZ`):**
+1. Webhook Trigger
+2. BigQuery (query VKU10_student_program_groups)
+3. Agregar (unifica outputs → array plano)
+4. Proceso Bach (Code node — motor anclas + cruce + calcularEstado)
+5. Responder
+
+**Workflow Export Bach (9 nodos, ID: `a4gVJHVvcGUTq5GC`):**
+`Webhook → Build Payload → Crear Hoja (API Sheets) → Escribir Datos (batchUpdate) → Preparar Formato → Aplicar Formato → Mover a Carpeta → Publicar → Responder`
+
+**Credencial Google Sheets:** `bbUDq8xPmSSp1VQ7` (NICOLAS SHEETS)
+**Carpeta Drive destino:** `1hmY38PDIcPPJEKRe2pUO8hAxr0-8iyDM`
+
+---
+
+## 8. Funcionalidades Implementadas
+
+### 8.1 Landing Page
 - [x] Cards de campañas con estados (activo, bloqueado)
 - [x] Diseño sci-fi organizacional (dark, HUD, esquinas tácticas)
 - [x] Responsive (mobile/tablet/desktop)
 - [x] Navegación por estado React (sin React Router aún)
 - [x] Toggle Beta/Prod (visual)
 
-### 6.2 Malla Curricular (Anclas)
+### 8.2 TecnicosMenu — Submenú principal EDTH
+- [x] Badge de último sync en tiempo real (semáforo verde/amarillo/rojo)
+- [x] Sección LECTIVA (4 herramientas)
+- [x] Sección PRODUCTIVA (3 herramientas)
+- [x] v1.4.0
+
+### 8.3 Malla Curricular (Anclas) — LECTIVA 01
 - [x] Motor de cálculo fiel a la macro original
 - [x] Tabla con todos los períodos de ingreso
 - [x] Columnas: Período Ingreso | Fecha Ingreso | Módulo 1-8 (Materia + Período + Fechas)
@@ -125,145 +247,170 @@ La hoja de Google Sheets tiene dos bloques por estudiante:
 - [x] Filtro HOY — detecta qué módulo está activo hoy, resalta en verde
 - [x] Modal para agregar/editar fechas por año (persiste en localStorage)
 - [x] Tabs por programa (TLAA, TLMV, TLCF, TLPDD)
-- [x] Agregar nuevo programa: solo editar `src/data/programs.js`
-- [x] Agregar nuevo año: botón en UI o editar `src/data/calendar.js`
+
+### 8.4 Validación de Traslados — LECTIVA 02
+- [x] Panel n8n con visualización nodo a nodo del flujo en tiempo real
+- [x] Llama webhook `asignacion-etdh` (POST) y parsea respuesta
+- [x] Tabla con sticky columns (ID SIS, Cédula, Nombre)
+- [x] 8 módulos por estudiante con colores por módulo
+- [x] Columnas: Materia Plat + Grupo + ID MongoDB + Fecha Inicio + Materia Ancla + Fechas Ancla + Período Ancla + Estado
+- [x] Estado: CORRECTO (verde) / FECHA FUERA DE RANGO (rojo) / FALTA MATERIA (amber)
+- [x] Filtros: texto libre, programa, estado (OK/ERROR), período de ingreso debería
+- [x] Paginación completa (10/25/50/100/500 filas, ir a página)
+- [x] Modo compacto / normal
+- [x] Tab interna "REPORTE" — por período ancla, tipo activos/todos
+- [x] Reporte muestra: materias esperadas por programa en el período + estudiantes con errores
+- [x] Reset y nueva ejecución
+
+### 8.5 Reporte de Materias Erradas — LECTIVA 03
+- [x] Vista propia (ruta `reporte`)
+- [x] Selección de período de revisión
+- [x] Tipo: Solo Activos / Todos
+- [x] Tabla: ID SIS, cédula, nombre, programa, estado plataforma, f.ingreso, período ing., materia actual, grupo actual, ID grupo, F.inicio actual, materia correcta, fechas correctas, tipo error
+
+### 8.6 Disponibilidad de Grupos — LECTIVA 04 (EN DESARROLLO)
+- [ ] Consulta webhook `disponibilidad-grupos-etdh`
+- [ ] Vista de grupos activos por período para cada técnico
+- [ ] Inscripciones brutas, activos, fechas de grupo en tiempo real
+
+### 8.7 WorldBox Productiva — PRODUCTIVA 05
+- [x] Visualización de cohortes por etapa (Adaptación/Desempeño/Proyección/Finalizado)
+- [x] Hover sobre zonas para ver cohortes activas hoy
+
+### 8.8 Malla Productiva — PRODUCTIVA 06
+- [x] Tabla de etapas calculadas por fecha de ingreso
+- [x] Filtro por año
+- [x] Sync desde Supabase (`seguimiento_etdh`)
+- [x] CRUD de cohortes (agregar/editar/eliminar/reset)
+- [x] Modal AddCohortModal
+
+### 8.9 Validación Productiva — PRODUCTIVA 07
+- [x] Verifica que estudiantes productivos tengan etapas correctamente asignadas
+- [x] Compara Adaptación/Desempeño/Proyección según fecha de ingreso a productiva
+
+### 8.10 Módulo Bachillerato EDH (v1.5.0)
+
+**BachillerMenu**
+- [x] Submenú con 4 cards: Malla Curricular, Validación, Gestión Fechas, Reporte Erradas
+- [x] Mismo esquema visual que TecnicosMenu
+
+**MallaBachView — BACH 01**
+- [x] Motor `anchorEngineBach.js` — traducción fiel del Apps Script `calcularGradoActual.gs`
+- [x] Tabla de anclas por grado (6-11) y calendarios III/IV y V/VI
+- [x] Selector de grado y calendario
+
+**ValidacionBachView — BACH 02**
+- [x] Carga datos desde webhook `asignacion-bach`
+- [x] Filtros multi-select: programa, grado, tipo de error
+- [x] Acordeón por grado con contadores por tipo de error
+- [x] Tooltips portal con info completa del módulo
+- [x] Badges de estado con color por tipo de error
+
+**GestionFechasBach — BACH 03**
+- [x] CRUD de fechas para calendarios III/IV y V/VI en localStorage
+- [x] Soporte para años extra más allá de 2027
+
+**ReporteBachView — BACH 04**
+- [x] Selector de años con badge de conteo de errores por año (pill)
+- [x] Calendario rejilla: FASE 1 (ENE→MAY) + FASE 2 (JUL→NOV) por año seleccionado
+- [x] Celdas muestran nombre completo de materia (sin abreviatura, sin contadores)
+- [x] Al seleccionar celda → panel de fechas exactas Cal. III/IV + Cal. V/VI
+- [x] Tablas de resultados agrupadas por año + mes + materia (visibles solo al seleccionar celdas)
+  - Encabezado: materia · mes badge · año · grados · contadores INC/N-A/PEND
+- [x] Export CSV (client-side, incluye INCORRECTO + NO ASIGNADO + PENDIENTE)
+- [x] Export Google Sheets: una hoja por `año · FASE 1/2 · mes · materia` (ej: `2026 · FASE 1 · MAY · Matemáticas`)
+  - Hoja con fila de resumen (stats) + encabezado coloreado + datos de estudiantes
+  - Retorna URL del Sheets creado, link directo "Abrir en Sheets →"
+- [x] Tipos de error: INCORRECTO (rojo) · NO ASIGNADO (ámbar) · PENDIENTE (amarillo)
+- [x] Filtros: programa, tipo error, búsqueda libre
+
+**Motor Bach (`anchorEngineBach.js` + `calendarBach.js`)**
+- [x] `MATERIAS_BASE`: 5 materias por grado, rotación carrusel
+- [x] `FECHAS_III_IV` + `FECHAS_V_VI`: 60 períodos base (2022-2027)
+- [x] `getCalendario(cal)`: base + overrides localStorage + años extra
+- [x] `getBachAvailableYears()`: base + localStorage + 2 años futuros
+- [x] `construirSecuencia(gradoIngreso, fechaIngreso, anclas)`: secuencia completa de 80 módulos
+- [x] `calcularEstado(tieneBQ, fechaBQ, itemAncla)`: CORRECTO / INCORRECTO - FECHA / PENDIENTE / NO ASIGNADO
+- [x] `COLOR_GRADO`: colores Tailwind por grado (6=azul, 7=púrpura, 8=verde, 9=naranja, 10=rojo, 11=fucsia)
 
 ---
 
-## 7. Bugs Encontrados y Corregidos
+## 9. Bugs Encontrados y Corregidos
 
 ### BUG-001 — `pointer-events: none` en `.scanline` bloqueaba todos los clics
-- **Síntoma:** Botones no respondían al click. El cursor no cambiaba a manita.
-- **Causa:** La clase `.scanline` tenía `pointer-events: none` directamente en el div contenedor, no en un pseudo-elemento.
-- **Solución:** Mover el efecto visual a `::before` con `position: fixed` y `pointer-events: none`. El div contenedor queda interactivo.
+- **Síntoma:** Botones no respondían al click.
+- **Causa:** La clase `.scanline` tenía `pointer-events: none` en el div contenedor.
+- **Solución:** Mover el efecto visual a `::before` con `position: fixed`. El div queda interactivo.
 - **Archivo:** `src/index.css`
 
 ### BUG-002 — Columna sticky "Período de Ingreso" traslúcida al activar filtro HOY
-- **Síntoma:** Al activar el filtro HOY la columna fija mostraba el contenido de detrás al hacer scroll horizontal.
-- **Causa:** El estado activo usaba `bg-status-active/10` (color con 10% opacidad) en lugar de un color sólido.
-- **Solución:** Reemplazar con color hexadecimal sólido `bg-[#0d2b1a]`.
+- **Causa:** `bg-status-active/10` (10% opacidad) en lugar de color sólido.
+- **Solución:** Reemplazar con `bg-[#0d2b1a]`.
 - **Archivo:** `src/components/anclas/AnclaTable.jsx`
 
 ### BUG-003 — Verde de módulo activo persistía al desactivar filtro HOY
-- **Síntoma:** Al desactivar el botón HOY, las celdas seguían resaltadas en verde.
-- **Causa:** La condición `isActive` no incluía el estado de `todayFilter`.
-- **Solución:** Cambiar `const isActive = modIdx === row.activeModuleIdx` por `const isActive = todayFilter && modIdx === row.activeModuleIdx`.
+- **Causa:** `isActive` no incluía el estado de `todayFilter`.
+- **Solución:** `const isActive = todayFilter && modIdx === row.activeModuleIdx`.
 - **Archivo:** `src/components/anclas/AnclaTable.jsx`
 
 ### BUG-004 — Nombres de programas incorrectos
-- **Síntoma:** TLAA aparecía como "Administración y Auditoría", TLPDD como "Programación y Desarrollo Digital".
 - **Causa:** Nombres inventados al crear la configuración inicial.
 - **Solución:** Corregir con nombres oficiales en `src/data/programs.js`.
 
 ---
 
-## 7b. Las 3 Macros de Google Sheets — Análisis Técnico Completo
+## 10. Las 3 Macros de Google Sheets — Análisis Técnico Completo
 
 ### Cadena de ejecución
 ```
 Macro 1 → Macro 2 → Macro 3
 (BigQuery)  (Validación)  (Reporte)
 ```
-Macro 1 debe correr antes que Macro 2. Macro 2 antes que Macro 3.
-
----
 
 ### Macro 1 — Asignación de Programa en Plataforma
 **Fuente:** BigQuery (`potent-poetry-284019.DVKU_SIS.VKU10_student_program_groups`, ~50k registros)
-
-**Lo que hace:**
-1. Lee cédulas de col A en hoja ASIGNACION
-2. Por cada cédula, consulta BigQuery para obtener el programa asignado en plataforma
-3. Escribe en col F: código del programa (`TLMV`, `TLAA`, `TLCF`, `TLPDD`, etc.)
-4. Escribe en col J: estado en plataforma (ej: `"Retiro académico"`, `"Activo"`)
-
-**Mapeo de nombres (CASE WHEN en BigQuery):**
-| Nombre largo en plataforma | Código corto |
-|---------------------------|--------------|
-| Técnico Laboral en Mercadeo y Ventas | TLMV |
-| Técnico Laboral Auxiliar Administrativo | TLAA |
-| Técnico Laboral en Contabilidad y Finanzas | TLCF |
-| Técnico Laboral en Procesamiento y Digitación de Datos | TLPDD |
-
-**Lógica multi-programa:** Si un estudiante tiene más de un programa, se usa prioridad (el más reciente o el activo).
-
----
+- Lee cédulas de col A en hoja ASIGNACION
+- Por cada cédula, consulta BigQuery para obtener el programa asignado en plataforma
+- Escribe en col F: código del programa (`TLMV`, `TLAA`, `TLCF`, `TLPDD`)
+- Escribe en col J: estado en plataforma (ej: `"Retiro académico"`)
 
 ### Macro 2 — Validación Módulo a Módulo
-**Fuente:** Col F (resultado Macro 1) + hoja ANCLAS
-
-**Lo que hace por cada estudiante:**
-1. Lee programa (col F) y fecha de ingreso real
-2. Consulta hoja ANCLAS para obtener la malla correcta según anclas
-3. Compara módulo por módulo (M1 a M7+) lo que tiene en plataforma vs lo correcto
-4. Escribe en col N: `TOTAL INCORRECTOS` (número entero)
-5. Escribe en cols K-ZZ: 8 grupos de columnas, uno por módulo
-
-**Estructura de cada grupo de módulo (8 columnas por módulo):**
-```
-[Materia FILE2] [Grupo FILE2] [ID Grupo MongoDB FILE2] [Fecha Inicio FILE2]
-[Materia ANCLA] [Fechas ANCLA] [Período ANCLA] [ESTADO]
-```
-
-**ESTADO posibles valores:**
-- `CORRECTO` — la materia y fechas coinciden
-- `INCORRECTO - FECHA FUERA DE RANGO` — la materia puede coincidir pero las fechas no
-
-**Función normalizadora:** Maneja diferencias de acentos entre BigQuery y la hoja ANCLAS (ej: `"Auditoria"` vs `"Auditoría"`). Aplica `.normalize('NFD')` y remoción de diacríticos antes de comparar.
-
----
+- Lee programa (col F) + fecha de ingreso → consulta hoja ANCLAS
+- Compara módulo por módulo (M1 a M8) plataforma vs correcto
+- Escribe en col N: TOTAL INCORRECTOS
+- Usa normalizador de acentos (`.normalize('NFD')`) para comparar materias
+- **ESTADO posibles:** `CORRECTO` / `INCORRECTO - FECHA FUERA DE RANGO`
 
 ### Macro 3 — Reporte de Distribución por Período
-**Input del usuario:** Período específico (ej: `"ABR I 2025"`)
-
-**Lo que hace:**
-1. Consulta BigQuery filtrando estudiantes del período indicado
-2. Lee col N (TOTAL INCORRECTOS) por cada estudiante del período
-3. Agrupa estudiantes por cantidad de módulos incorrectos (0, 1, 2, 3... módulos mal)
-4. Genera reporte de distribución en una hoja nueva
-5. Crea gráfico de barras con la distribución
-
-**Propósito:** Ver de un vistazo cuántos estudiantes de un período tienen errores y cuántos módulos incorrectos tienen.
+- Input: período específico (ej: `"ABR I 2025"`)
+- Lee col N (TOTAL INCORRECTOS) por estudiantes del período
+- Genera gráfico de distribución
 
 ---
 
-### Implicaciones para Parte 2 (Módulo Web)
-- El módulo web replicará la lógica de Macro 2 (validación módulo a módulo)
-- Input: estudiante ingresa sus datos + lo que tiene asignado en plataforma por módulo
-- Output: comparación ANCLA vs FILE2, tabla de CORRECTO/INCORRECTO
-- El normalizador de acentos también debe implementarse en JavaScript
-- La conexión a BigQuery se hará vía n8n (backend), no directo desde el frontend
+## 11. Siguientes Pasos
+
+### Inmediatos
+- [ ] Completar DisponibilidadView (LECTIVA 04) — conectar con webhook
+- [ ] Bach: webhook Slack para notificar reporte exportado (igual que ETDH)
+- [ ] Bach: filtro por programa en ValidacionBachView
+
+### Backlog
+- [ ] React Router cuando haya más de 2 rutas principales
+- [ ] Migrar localStorage a Supabase cuando sea necesario
+- [ ] Notificaciones de resultado de validación
 
 ---
 
-## 8. Siguientes Pasos
-
-### Parte 2 — Módulo de Validación de Traslados (TÉCNICOS EDTH)
-Replicar la lógica de la hoja ASIGNACION:
-- [ ] Formulario de ingreso de estudiante (cédula, nombre, celular, programa, fecha ingreso)
-- [ ] Cálculo automático de malla con motor de anclas
-- [ ] Comparador: lo asignado en plataforma vs lo correcto según anclas
-- [ ] Reporte por módulo: CORRECTO / INCORRECTO con detalle
-- [ ] Integración con n8n para procesar y guardar datos
-
-### Parte 3 — Integración n8n
-- [ ] Webhook para recibir formulario de traslado
-- [ ] Nodo de consulta a hoja ASIGNACION vía Google Sheets
-- [ ] Lógica de validación en n8n
-- [ ] Notificaciones de resultado
-
-### Parte 4 — Bachillerato EDH
-- [ ] Estructura diferente a técnicos (pendiente análisis)
-- [ ] Campaña BACHILLER EDH activada en landing
-
----
-
-## 9. Decisiones Técnicas
+## 12. Decisiones Técnicas
 
 | Decisión | Razón |
 |----------|-------|
-| Tailwind CSS v3 (no v4) | La config del proyecto usa formato v3 (`tailwind.config.js`). v4 tiene API completamente diferente. |
-| Sin React Router (aún) | Navegación simple por estado suficiente para fase 1. Se agregará cuando haya más de 2 vistas. |
-| localStorage para calendario | Sin backend aún. Permite agregar años nuevos sin tocar código. Se migrará a DB cuando haya backend. |
+| Tailwind CSS v3 (no v4) | La config usa formato v3 (`tailwind.config.js`). v4 tiene API completamente diferente. |
+| Sin React Router (aún) | Navegación simple por estado suficiente. Se agregará cuando haya más vistas principales. |
+| localStorage para calendario y cohortes productiva | Sin backend propio. Permite modificar sin tocar código. |
 | Motor calculado (no tabla guardada) | Más eficiente y siempre correcto. Agregar programa = 5 líneas de config. |
 | Vercel plan gratuito | Sin inversión inicial. Suficiente para uso interno de Kuepa. |
+| n8n como backend | Integra fácilmente con BigQuery, Supabase y Google Sheets sin servidor propio. |
+| Supabase para Productiva | Tabla `seguimiento_etdh` con datos de cohortes productivas. Sync desde app. |
+| Datos de muestra en ValidacionView | SAMPLE_RAW permite probar la UI sin llamar al webhook en desarrollo. |
