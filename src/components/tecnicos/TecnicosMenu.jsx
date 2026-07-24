@@ -110,7 +110,7 @@ export default function TecnicosMenu({ onNavigate, onBack }) {
                 </span>
               </div>
               <h3 className="font-display font-black text-lg uppercase tracking-wider text-primary mb-1">
-                Malla Curricular
+                Calendario Académico Técnicos
               </h3>
               <p className="text-text-secondary text-sm leading-relaxed">
                 Visualiza la distribución de materias por período de ingreso para todos los programas técnicos.

@@ -655,38 +655,49 @@ export default function ReporteBachView({ onBack }) {
     const min  = String(now.getMinutes()).padStart(2, '0')
     const yrs  = [...selectedYears].sort().join(', ') || 'todos'
 
+    // Group tableGroups by year+slot → one sheet per año-mes
+    const sheetsByMonth = new Map()
+    for (const group of tableGroups) {
+      const key = `${group.year ?? '_'}_${group.slot ?? '_'}`
+      if (!sheetsByMonth.has(key)) {
+        const mes = group.slot !== null ? SLOT_LABELS[group.slot] : ''
+        sheetsByMonth.set(key, {
+          sheetName: [group.year, mes].filter(Boolean).join('-'),
+          year: group.year,
+          slot: group.slot,
+          materias: [],
+        })
+      }
+      sheetsByMonth.get(key).materias.push({
+        materia: group.matName,
+        stats: {
+          total:      group.rows.length,
+          incorrecto:  group.rows.filter(r => r.tipo === 'INCORRECTO').length,
+          noAsignado:  group.rows.filter(r => r.tipo === 'NO ASIGNADO').length,
+          pendiente:   group.rows.filter(r => r.tipo === 'PENDIENTE').length,
+        },
+        rows: group.rows.map(({ s, m, tipo }) => ({
+          id:           s.id,
+          programa:     s.programa,
+          gradoIngreso: s.gradoIngreso,
+          fechaIngreso: s.fechaIngreso,
+          estadoPlat:   s.estadoPlat,
+          gradoModulo:  m.grado,
+          materiaBQ:    m.materiaBQ || 'Sin asignar',
+          grupoBQ:      m.grupoBQ,
+          idGrupoBQ:    m.idGrupoBQ,
+          fechaBQ:      m.fechaBQ,
+          materiaAncla: m.materiaAncla,
+          fechasAncla:  m.fechasAncla,
+          tipoError:    tipo,
+        })),
+      })
+    }
+
     const payload = {
       title:    `REPORTE BACH ${dd}/${mm}/${now.getFullYear()} ${hh}:${min} — ${yrs}`,
       folderId: '1hmY38PDIcPPJEKRe2pUO8hAxr0-8iyDM',
-      sections: tableGroups.map(group => {
-        const fase      = group.slot !== null ? (group.slot < 5 ? 'FASE 1' : 'FASE 2') : ''
-        const mes       = group.slot !== null ? SLOT_LABELS[group.slot] : ''
-        const sheetName = [group.year, fase, mes, group.matName].filter(Boolean).join(' · ')
-        return {
-          sheetName,
-          stats: {
-            total:      group.rows.length,
-            incorrecto:  group.rows.filter(r => r.tipo === 'INCORRECTO').length,
-            noAsignado:  group.rows.filter(r => r.tipo === 'NO ASIGNADO').length,
-            pendiente:   group.rows.filter(r => r.tipo === 'PENDIENTE').length,
-          },
-          rows: group.rows.map(({ s, m, tipo }) => ({
-            id:           s.id,
-            programa:     s.programa,
-            gradoIngreso: s.gradoIngreso,
-            fechaIngreso: s.fechaIngreso,
-            estadoPlat:   s.estadoPlat,
-            gradoModulo:  m.grado,
-            materiaBQ:    m.materiaBQ || 'Sin asignar',
-            grupoBQ:      m.grupoBQ,
-            idGrupoBQ:    m.idGrupoBQ,
-            fechaBQ:      m.fechaBQ,
-            materiaAncla: m.materiaAncla,
-            fechasAncla:  m.fechasAncla,
-            tipoError:    tipo,
-          })),
-        }
-      }),
+      sections: [...sheetsByMonth.values()],
     }
 
     try {
@@ -951,7 +962,7 @@ export default function ReporteBachView({ onBack }) {
                 {exportSheetsFase === 'loading' ? '⟳ Exportando...' :
                  exportSheetsFase === 'done'    ? '✓ Exportado a Sheets' :
                  exportSheetsFase === 'error'   ? '✗ Error — reintentar' :
-                 `↑ Google Sheets (${tableGroups.length} ${tableGroups.length === 1 ? 'hoja' : 'hojas'})`}
+                 `↑ Google Sheets (${new Set(tableGroups.map(g => `${g.year}_${g.slot}`)).size} ${new Set(tableGroups.map(g => `${g.year}_${g.slot}`)).size === 1 ? 'hoja' : 'hojas'})`}
               </button>
               <button
                 onClick={handleExportCSV}

@@ -56,7 +56,7 @@ export default function BachillerMenu({ onNavigate, onBack }) {
                 </span>
               </div>
               <h3 className="font-display font-black text-lg uppercase tracking-wider text-primary mb-1">
-                Malla Curricular Bach
+                Calendario Académico Bachillerato
               </h3>
               <p className="text-text-secondary text-sm leading-relaxed">
                 Visualiza el calendario de materias por grado y programa. Rotación circular de 5 materias sobre

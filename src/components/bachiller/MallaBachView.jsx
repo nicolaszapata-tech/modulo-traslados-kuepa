@@ -182,12 +182,12 @@ export default function MallaBachView({ onBack }) {
             ‹ BACHILLER KUEPA
           </button>
           <span className="text-primary/20 font-mono">|</span>
-          <span className="text-[10px] font-mono tracking-widest uppercase text-primary">MALLA CURRICULAR BACH</span>
+          <span className="text-[10px] font-mono tracking-widest uppercase text-primary">CALENDARIO ACADÉMICO BACHILLERATO</span>
         </div>
 
         <div className="mb-6">
           <h1 className="font-display font-black text-3xl uppercase tracking-wider text-text-primary mb-1">
-            Malla Curricular <span className="text-primary">Bachillerato</span>
+            Calendario Académico <span className="text-primary">Bachillerato</span>
           </h1>
           <p className="text-text-secondary text-sm font-mono">
             Rotación de materias por grado y programa · 60 ciclos 2022-2027 · Tolerancia ±1 día

@@ -36,7 +36,7 @@ export default function AnclaViewer({ onBack }) {
           <span className="text-primary/20 font-mono">|</span>
           <span className="text-[10px] font-mono tracking-widest uppercase text-text-muted hover:text-primary cursor-pointer transition-colors" onClick={onBack}>TÉCNICOS EDTH</span>
           <span className="text-primary/20 font-mono">›</span>
-          <span className="text-[10px] font-mono tracking-widest uppercase text-primary">MALLA CURRICULAR</span>
+          <span className="text-[10px] font-mono tracking-widest uppercase text-primary">CALENDARIO ACADÉMICO TÉCNICOS</span>
         </div>
 
         <button
@@ -50,7 +50,7 @@ export default function AnclaViewer({ onBack }) {
       {/* Title */}
       <div className="mb-6">
         <h1 className="font-display font-black text-2xl text-text-primary uppercase tracking-wider mb-1">
-          Malla <span className="text-primary">Curricular</span>
+          Calendario Académico <span className="text-primary">Técnicos</span>
         </h1>
         <p className="text-text-muted text-xs font-mono">
           Distribución de materias por período de ingreso — Programas Técnicos Laborales

@@ -63,6 +63,22 @@ function findPeriodForDate(startDateStr) {
   return null
 }
 
+function formatOpeningDate(raw) {
+  if (!raw) return null
+  try {
+    const date = new Date(raw)
+    if (isNaN(date.getTime())) return raw
+    return date.toLocaleDateString('es-CO', {
+      timeZone: 'America/Bogota',
+      day:   '2-digit',
+      month: '2-digit',
+      year:  'numeric',
+    })
+  } catch {
+    return raw
+  }
+}
+
 function getProgramId(programName) {
   if (!programName) return null
   if (/Auxiliar Administrativo/i.test(programName)) return 'TLAA'
@@ -72,14 +88,70 @@ function getProgramId(programName) {
   return null
 }
 
+// Alpha/Alfa/Módulo 0 y Omega/Excel → esperan 1 fecha. Resto → 6 fechas.
+const ALPHA_RE = /\b(alpha|alfa|m[oó]dulo\s*0|mod\.?\s*0|m0)\b/i
+const OMEGA_RE = /\b(omega|excel)\b/i
+
+function expectedOpeningDates(groupName) {
+  const n = groupName ?? ''
+  return (ALPHA_RE.test(n) || OMEGA_RE.test(n)) ? 1 : 6
+}
+
+const MAX_DIFF_MS = 3 * 24 * 60 * 60 * 1000 // 3 días en ms
+
+function parseDMY(str) {
+  if (!str) return null
+  const p = str.split('/')
+  if (p.length !== 3) return null
+  const ts = new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])).getTime()
+  return isNaN(ts) ? null : ts
+}
+
+// Retorna { date, isAfterStart } o null si ninguna fecha cae dentro de ±3 días.
+// Válida solo si apertura <= start_date (hasta 3 días antes).
+// Si la más cercana está después del start_date pero dentro de 3 días → isAfterStart=true.
+function findRelevantOpeningDate(openingDates, startDateStr) {
+  if (!openingDates?.length || !startDateStr) return null
+  const startTs = parseDMY(startDateStr)
+  if (startTs === null) return null
+  let best = null, minDiff = Infinity
+  for (const raw of openingDates) {
+    const t = new Date(raw).getTime()
+    if (isNaN(t)) continue
+    const diff = Math.abs(t - startTs)
+    if (diff < minDiff) { minDiff = diff; best = { date: raw, ts: t } }
+  }
+  if (!best || minDiff > MAX_DIFF_MS) return null
+  return { date: best.date, isAfterStart: best.ts > startTs }
+}
+
+const EXCLUDED_NAME_KEYWORDS = ['desempeño', 'adaptación', 'adaptacion', 'proyección', 'proyeccion']
+
+// ── Etapas lectivas ────────────────────────────────────────────────────────────
+const ETAPAS = [
+  { id: 'introduccion', label: 'Etapa de introducción lectiva' },
+  { id: 'transicion',   label: 'Etapa de transición lectiva'  },
+  { id: 'fundamentacion', label: 'Fundamentación'             },
+]
+
+function getEtapa(groupName) {
+  const n = groupName ?? ''
+  if (ALPHA_RE.test(n)) return 'introduccion'
+  if (OMEGA_RE.test(n)) return 'transicion'
+  return 'fundamentacion'
+}
+
 // ── Componente ─────────────────────────────────────────────────────────────────
 export default function DisponibilidadView({ onBack }) {
-  const [rawData,         setRawData]         = useState([])
-  const [loading,         setLoading]         = useState(true)
-  const [error,           setError]           = useState(null)
-  const [selectedProgram, setSelectedProgram] = useState(PROGRAMS[0].id)
-  const [selectedYear,    setSelectedYear]    = useState(2026)
-  const [selectedPeriod,  setSelectedPeriod]  = useState(null)
+  const [rawData,          setRawData]          = useState([])
+  const [loading,          setLoading]          = useState(true)
+  const [error,            setError]            = useState(null)
+  const [selectedProgram,  setSelectedProgram]  = useState(PROGRAMS[0].id)
+  const [selectedYear,     setSelectedYear]     = useState(2026)
+  const [selectedPeriod,   setSelectedPeriod]   = useState(null)
+  const [selectedEtapas,   setSelectedEtapas]   = useState(new Set())
+  const [sectionSearch,    setSectionSearch]     = useState('')
+  const [selectedMaterias, setSelectedMaterias]  = useState(new Set())
 
   useEffect(() => {
     fetch(WEBHOOK_URL)
@@ -122,25 +194,84 @@ export default function DisponibilidadView({ onBack }) {
     return firstWithData ? firstWithData.n : (yearPeriods[0]?.n ?? null)
   }, [selectedPeriod, yearPeriods, periodsWithData])
 
-  const tableData = useMemo(() =>
-    effectivePeriod ? programData.filter(r => r.period === effectivePeriod) : []
-  , [programData, effectivePeriod])
+  const tableData = useMemo(() => {
+    if (!effectivePeriod) return []
+    const raw = programData
+      .filter(r => r.period === effectivePeriod)
+      .filter(r => !EXCLUDED_NAME_KEYWORDS.some(kw =>
+        (r.group_name ?? '').toLowerCase().includes(kw)
+      ))
+    // Agrupa por group_id y acumula todas las fechas de apertura en opening_dates[]
+    const map = new Map()
+    for (const row of raw) {
+      if (!map.has(row.group_id)) {
+        map.set(row.group_id, { ...row, opening_dates: [] })
+      }
+      const entry = map.get(row.group_id)
+      if (row.opening_date) entry.opening_dates.push(row.opening_date)
+      if (row.is_opening)   entry.is_opening = row.is_opening
+    }
+    return [...map.values()]
+  }, [programData, effectivePeriod])
+
+  const etapaFilteredData = useMemo(() => {
+    if (selectedEtapas.size === 0) return tableData
+    return tableData.filter(r => selectedEtapas.has(getEtapa(r.group_name)))
+  }, [tableData, selectedEtapas])
+
+  const sectionFilteredData = useMemo(() => {
+    const q = sectionSearch.trim().toLowerCase()
+    if (!q) return etapaFilteredData
+    return etapaFilteredData.filter(r => (r.section_id ?? '').toLowerCase().includes(q))
+  }, [etapaFilteredData, sectionSearch])
+
+  const availableMaterias = useMemo(() => {
+    const names = new Set()
+    sectionFilteredData.forEach(r => { if (r.group_name) names.add(r.group_name) })
+    return [...names].sort()
+  }, [sectionFilteredData])
+
+  const displayData = useMemo(() => {
+    if (selectedMaterias.size === 0) return sectionFilteredData
+    return sectionFilteredData.filter(r => selectedMaterias.has(r.group_name))
+  }, [sectionFilteredData, selectedMaterias])
 
   const colors = PROGRAM_COLORS[selectedProgram] ?? PROGRAM_COLORS.TLAA
 
   const handleProgramChange = (id) => {
     setSelectedProgram(id)
     setSelectedPeriod(null)
+    setSelectedEtapas(new Set())
+    setSectionSearch('')
+    setSelectedMaterias(new Set())
   }
 
   const handleYearChange = (year) => {
     setSelectedYear(year)
     setSelectedPeriod(null)
+    setSelectedMaterias(new Set())
+  }
+
+  const handleEtapaToggle = (id) => {
+    setSelectedEtapas(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+    setSelectedMaterias(new Set())
+  }
+
+  const handleMateriaToggle = (name) => {
+    setSelectedMaterias(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) { next.delete(name) } else { next.add(name) }
+      return next
+    })
   }
 
   return (
     <div className="scanline min-h-full">
-      <div className="max-w-6xl mx-auto px-6 py-12">
+      <div className="max-w-[1600px] mx-auto px-6 py-12">
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-3 mb-8">
@@ -268,6 +399,92 @@ export default function DisponibilidadView({ onBack }) {
               sin grupos
             </span>
           </div>
+
+          {/* Filtro Etapa */}
+          <div className="flex items-start gap-2 pt-1 border-t border-zinc-800/60">
+            <span className="text-[9px] font-mono uppercase tracking-widest text-text-muted w-16 pt-1.5">ETAPA</span>
+            <div className="flex flex-wrap gap-1.5">
+              {ETAPAS.map(etapa => {
+                const isActive = selectedEtapas.has(etapa.id)
+                return (
+                  <button
+                    key={etapa.id}
+                    onClick={() => handleEtapaToggle(etapa.id)}
+                    className={`px-2.5 py-1 text-[10px] font-mono tracking-wider border transition-all duration-150 ${
+                      isActive
+                        ? 'border-violet-400 bg-violet-400/10 text-violet-300'
+                        : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    {etapa.label}
+                  </button>
+                )
+              })}
+              {selectedEtapas.size > 0 && (
+                <button
+                  onClick={() => { setSelectedEtapas(new Set()); setSelectedMaterias(new Set()) }}
+                  className="px-2 py-1 text-[9px] font-mono text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  limpiar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Filtro Sección — búsqueda por section_id */}
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-mono uppercase tracking-widest text-text-muted w-16 shrink-0">SECCIÓN</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={sectionSearch}
+                onChange={e => { setSectionSearch(e.target.value); setSelectedMaterias(new Set()) }}
+                placeholder="Pega o escribe el section_id…"
+                className="w-72 px-3 py-1 text-[10px] font-mono bg-zinc-900 border border-zinc-700 text-zinc-200 placeholder-zinc-600 focus:border-violet-500 focus:outline-none transition-colors"
+              />
+              {sectionSearch && (
+                <button
+                  onClick={() => { setSectionSearch(''); setSelectedMaterias(new Set()) }}
+                  className="text-[9px] font-mono text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  limpiar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Filtro Materia */}
+          {availableMaterias.length > 0 && (
+            <div className="flex items-start gap-2">
+              <span className="text-[9px] font-mono uppercase tracking-widest text-text-muted w-16 pt-1.5">MATERIA</span>
+              <div className="flex flex-wrap gap-1.5">
+                {availableMaterias.map(name => {
+                  const isActive = selectedMaterias.has(name)
+                  return (
+                    <button
+                      key={name}
+                      onClick={() => handleMateriaToggle(name)}
+                      className={`px-2.5 py-1 text-[10px] font-mono tracking-wide border transition-all duration-150 ${
+                        isActive
+                          ? 'border-zinc-300 bg-zinc-800 text-zinc-100'
+                          : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  )
+                })}
+                {selectedMaterias.size > 0 && (
+                  <button
+                    onClick={() => setSelectedMaterias(new Set())}
+                    className="px-2 py-1 text-[9px] font-mono text-zinc-600 hover:text-zinc-400 transition-colors"
+                  >
+                    limpiar
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Tabla */}
@@ -282,50 +499,112 @@ export default function DisponibilidadView({ onBack }) {
                 <th className="text-right  px-4 py-3 text-[10px] tracking-widest uppercase text-text-muted font-normal w-24">ACTIVOS</th>
                 <th className="text-center px-4 py-3 text-[10px] tracking-widest uppercase text-text-muted font-normal w-32">INICIO</th>
                 <th className="text-center px-4 py-3 text-[10px] tracking-widest uppercase text-text-muted font-normal w-32">FIN</th>
-                <th className="px-4 py-3 w-12"></th>
+                <th className="text-center px-4 py-3 text-[10px] tracking-widest uppercase text-text-muted font-normal w-20">GRUPO EN EL SIS</th>
+                <th className="text-center px-4 py-3 text-[10px] tracking-widest uppercase text-text-muted font-normal w-44">FECHA APERTURA</th>
+                <th className="text-center px-4 py-3 text-[10px] tracking-widest uppercase text-text-muted font-normal w-36">¿TIENE APERTURA ACTIVA?</th>
+                <th className="text-center px-4 py-3 text-[10px] tracking-widest uppercase text-text-muted font-normal w-20">SECTION GROUP</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-text-muted text-xs">
+                  <td colSpan={11} className="px-4 py-10 text-center text-text-muted text-xs">
                     <span className="animate-pulse">Consultando BigQuery...</span>
                   </td>
                 </tr>
-              ) : tableData.length === 0 ? (
+              ) : displayData.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-text-muted text-xs">
-                    Sin grupos registrados para <span className="text-text-secondary">{effectivePeriod}</span>
+                  <td colSpan={11} className="px-4 py-10 text-center text-text-muted text-xs">
+                    Sin grupos para los filtros seleccionados en <span className="text-text-secondary">{effectivePeriod}</span>
                   </td>
                 </tr>
               ) : (
-                tableData.map((row, idx) => (
-                  <tr
-                    key={row.group_id}
-                    className={`border-b border-zinc-800/40 transition-colors hover:bg-zinc-800/25 ${
-                      idx % 2 !== 0 ? 'bg-zinc-900/20' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-3 text-zinc-300 text-xs font-mono whitespace-nowrap tracking-wide">{row.group_id}</td>
-                    <td className="px-4 py-3 text-text-primary">{row.group_name}</td>
-                    <td className="px-4 py-3 text-text-secondary text-xs">{row.section_name}</td>
-                    <td className="px-4 py-3 text-right text-zinc-500">{row.count_students}</td>
-                    <td className={`px-4 py-3 text-right font-semibold ${colors.text}`}>{row.active_students}</td>
-                    <td className="px-4 py-3 text-center text-text-secondary">{row.start_date}</td>
-                    <td className="px-4 py-3 text-center text-text-secondary">{row.end_date}</td>
-                    <td className="px-4 py-3 text-center">
-                      <a
-                        href={`https://sis.kuepa.com/academic-group/details/${row.group_id}?tab=sylabus`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`${colors.text} opacity-60 hover:opacity-100 transition-opacity text-base leading-none`}
-                        title={row.group_id}
-                      >
-                        ↗
-                      </a>
-                    </td>
-                  </tr>
-                ))
+                displayData.map((row, idx) => {
+                  const relevant       = findRelevantOpeningDate(row.opening_dates, row.start_date)
+                  const hasValidDate   = relevant && !relevant.isAfterStart
+                  const hasWrongDate   = relevant && relevant.isAfterStart
+                  return (
+                    <tr
+                      key={row.group_id}
+                      className={`border-b border-zinc-800/40 transition-colors hover:bg-zinc-800/25 ${
+                        idx % 2 !== 0 ? 'bg-zinc-900/20' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-zinc-300 text-xs font-mono whitespace-nowrap tracking-wide">{row.group_id}</td>
+                      <td className="px-4 py-3 text-text-primary">{row.group_name}</td>
+                      <td className="px-4 py-3 text-text-secondary text-xs">{row.section_name}</td>
+                      <td className="px-4 py-3 text-right text-zinc-500">{row.count_students}</td>
+                      <td className={`px-4 py-3 text-right font-semibold ${colors.text}`}>{row.active_students}</td>
+                      <td className="px-4 py-3 text-center text-text-secondary">{row.start_date}</td>
+                      <td className="px-4 py-3 text-center text-text-secondary">{row.end_date}</td>
+
+                      {/* GRUPO EN EL SIS */}
+                      <td className="px-4 py-3 text-center">
+                        <a
+                          href={`https://sis.kuepa.com/academic-group/details/${row.group_id}?tab=sylabus`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Ver grupo en el SIS"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-mono font-semibold border border-sky-500/50 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 hover:border-sky-400 transition-all whitespace-nowrap"
+                        >
+                          GRUPO ↗
+                        </a>
+                      </td>
+
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          {row.section_id && (
+                            <span className="text-[9px] font-mono text-zinc-500 tracking-wide whitespace-nowrap">
+                              {row.section_id}
+                            </span>
+                          )}
+                          {hasValidDate && (
+                            <span className="text-[11px] font-mono font-semibold text-violet-300 whitespace-nowrap">
+                              {formatOpeningDate(relevant.date)}
+                            </span>
+                          )}
+                          {hasWrongDate && (
+                            <span className="text-[9px] font-mono font-semibold text-orange-400 leading-tight text-center">
+                              FECHA NO CORRESPONDE<br/>
+                              <span className="text-orange-400/60">{formatOpeningDate(relevant.date)}</span>
+                            </span>
+                          )}
+                          {!relevant && (
+                            <span className="text-[10px] font-mono font-semibold text-zinc-500 tracking-wide">FALTA</span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 text-center">
+                        {hasValidDate && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold border border-emerald-500/40 bg-emerald-500/10 text-emerald-400">✓ EXISTE</span>
+                        )}
+                        {hasWrongDate && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold border border-orange-500/40 bg-orange-500/10 text-orange-400">⚠ NO CORRESPONDE</span>
+                        )}
+                        {!relevant && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold border border-zinc-600/40 bg-zinc-800/40 text-zinc-500">FALTA</span>
+                        )}
+                      </td>
+
+                      {/* SECTION GROUP */}
+                      <td className="px-4 py-3 text-center">
+                        {row.section_id
+                          ? <a
+                              href={`https://sis.kuepa.com/academic-period/schedule/${row.section_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Revisión de grupos académicos de la sección"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-mono font-semibold border border-amber-500/50 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 hover:border-amber-400 transition-all whitespace-nowrap"
+                            >
+                              SECCIÓN ↗
+                            </a>
+                          : <span className="text-zinc-700 text-xs">—</span>
+                        }
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -334,9 +613,9 @@ export default function DisponibilidadView({ onBack }) {
         {/* Footer de tabla */}
         <div className="mt-2 flex justify-between text-[10px] font-mono text-text-muted">
           <span>
-            {loading ? 'cargando...' : `${tableData.length} grupo${tableData.length !== 1 ? 's' : ''} — ${effectivePeriod}`}
+            {loading ? 'cargando...' : `${displayData.length} fila${displayData.length !== 1 ? 's' : ''} de ${tableData.length} — ${effectivePeriod}`}
           </span>
-          <span>BRUTAS = universo total · ACTIVOS = estudiantes reales en programa</span>
+          <span>BRUTAS = universo total · ACTIVOS = estudiantes reales · APERTURA = datos de la sección</span>
         </div>
 
         {/* Footer */}
