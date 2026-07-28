@@ -925,8 +925,10 @@ export default function ReporteView({ onBack }) {
 
   async function doFetchGrupos() {
     setGruposLoading(true); setGruposError(null)
+    const controller = new AbortController()
+    const timeoutId  = setTimeout(() => controller.abort(), 60000) // 60s máx
     try {
-      const resp = await fetch(DISPONIBILIDAD_URL)
+      const resp = await fetch(DISPONIBILIDAD_URL, { signal: controller.signal })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
       let arr = []
@@ -935,11 +937,22 @@ export default function ReporteView({ onBack }) {
       } else if (Array.isArray(data?.data)) {
         arr = data.data.map(item => item.json ?? item)
       }
-      setGruposCache(arr)
+      // Deduplicar por group_id (el JOIN con opening_dates puede generar filas duplicadas)
+      const deduped = new Map()
+      for (const g of arr) {
+        if (g.group_id) deduped.set(g.group_id, g)
+      }
+      setGruposCache(deduped.size > 0 ? [...deduped.values()] : arr)
     } catch (e) {
-      setGruposError(e.message === 'Failed to fetch' ? 'Error CORS o red — revisa la consola' : e.message)
+      const msg = e.name === 'AbortError'
+        ? 'Tiempo de espera agotado (60s) — el servidor tardó demasiado'
+        : e.message === 'Failed to fetch'
+        ? 'Error de conexión — revisa la consola'
+        : e.message
+      setGruposError(msg)
       setGruposCache([])
     } finally {
+      clearTimeout(timeoutId)
       setGruposLoading(false)
     }
   }
